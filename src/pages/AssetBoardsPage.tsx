@@ -15,9 +15,13 @@ import {
 import { useAssetBoardsStore } from "../store/assetBoardsStore";
 import { useFlowEntriesStore } from "../store/flowEntriesStore";
 import type { AssetBoard } from "../types/assetBoard";
-import type { FlowEntry, FlowPeriodType, SubcategoryAmount } from "../types/flow";
+import type { FlowEntry, FlowPeriodSelection, FlowPeriodType, SubcategoryAmount } from "../types/flow";
 import type { TransactionType } from "../types/transaction";
-import { getFlowSummaryMetrics } from "../utils/flowAggregate";
+import {
+  filterFlowEntriesByPeriod,
+  getFlowPeriodLabel,
+  getFlowSummaryMetrics,
+} from "../utils/flowAggregate";
 import { formatCompactKRW } from "../utils/format";
 
 interface AssetBoardsPageProps {
@@ -27,6 +31,9 @@ interface AssetBoardsPageProps {
 interface BoardFormState {
   title: string;
   ownerName: string;
+  periodType: FlowPeriodType;
+  year: string;
+  quarter: number;
   description: string;
 }
 
@@ -43,6 +50,9 @@ type Notice = { tone: "success" | "error"; message: string } | null;
 const EMPTY_FORM: BoardFormState = {
   title: "",
   ownerName: "",
+  periodType: "quarter",
+  year: "2026",
+  quarter: 3,
   description: "",
 };
 
@@ -65,7 +75,7 @@ export default function AssetBoardsPage({ onOpenBoard }: AssetBoardsPageProps) {
       [...boards]
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
         .map((board) => {
-          const entries = entriesByBoardId[board.id] ?? [];
+          const entries = filterFlowEntriesByPeriod(entriesByBoardId[board.id] ?? [], board.period);
           return {
             board,
             entryCount: entries.length,
@@ -87,6 +97,9 @@ export default function AssetBoardsPage({ onOpenBoard }: AssetBoardsPageProps) {
     setForm({
       title: board.title,
       ownerName: board.ownerName,
+      periodType: board.period.periodType,
+      year: String(board.period.year),
+      quarter: board.period.quarter,
       description: board.description ?? "",
     });
     setError("");
@@ -103,18 +116,30 @@ export default function AssetBoardsPage({ onOpenBoard }: AssetBoardsPageProps) {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!form.title.trim() || !form.ownerName.trim()) {
-      setError("제목과 이름을 입력해주세요.");
+    const period = getFormPeriod(form);
+
+    if (!form.title.trim() || !form.ownerName.trim() || !period) {
+      setError("제목, 이름, 기간을 입력해주세요.");
       return;
     }
 
     if (editingBoard) {
-      updateBoard(editingBoard.id, form);
+      updateBoard(editingBoard.id, {
+        title: form.title,
+        ownerName: form.ownerName,
+        period,
+        description: form.description,
+      });
       closeForm();
       return;
     }
 
-    const board = addBoard(form);
+    const board = addBoard({
+      title: form.title,
+      ownerName: form.ownerName,
+      period,
+      description: form.description,
+    });
     closeForm();
     onOpenBoard(board.id);
   }
@@ -165,6 +190,7 @@ export default function AssetBoardsPage({ onOpenBoard }: AssetBoardsPageProps) {
       updateBoard(board.id, {
         title: backup.board.title,
         ownerName: backup.board.ownerName,
+        period: backup.board.period,
         description: backup.board.description,
       });
       replaceBoardEntries(board.id, backup.entries);
@@ -257,6 +283,58 @@ export default function AssetBoardsPage({ onOpenBoard }: AssetBoardsPageProps) {
               </label>
             </div>
 
+            <div className="grid gap-3 md:grid-cols-3">
+              <label className="text-sm font-medium text-slate-600">
+                기간 단위
+                <select
+                  className="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-ink outline-none transition focus:border-river focus:ring-2 focus:ring-river/20"
+                  value={form.periodType}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      periodType: event.target.value as FlowPeriodType,
+                    }))
+                  }
+                >
+                  <option value="quarter">분기별</option>
+                  <option value="year">연도별</option>
+                </select>
+              </label>
+
+              <label className="text-sm font-medium text-slate-600">
+                연도
+                <input
+                  className="mt-1 h-10 w-full rounded-md border border-slate-200 px-3 text-sm text-ink outline-none transition focus:border-river focus:ring-2 focus:ring-river/20"
+                  type="number"
+                  inputMode="numeric"
+                  min={1900}
+                  max={2200}
+                  value={form.year}
+                  onChange={(event) => setForm((current) => ({ ...current, year: event.target.value }))}
+                  placeholder="예: 2025"
+                />
+              </label>
+
+              {form.periodType === "quarter" && (
+                <label className="text-sm font-medium text-slate-600">
+                  분기
+                  <select
+                    className="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-ink outline-none transition focus:border-river focus:ring-2 focus:ring-river/20"
+                    value={form.quarter}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, quarter: Number(event.target.value) }))
+                    }
+                  >
+                    {[1, 2, 3, 4].map((quarter) => (
+                      <option key={quarter} value={quarter}>
+                        {quarter}분기
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </div>
+
             <label className="block text-sm font-medium text-slate-600">
               설명
               <textarea
@@ -301,6 +379,9 @@ export default function AssetBoardsPage({ onOpenBoard }: AssetBoardsPageProps) {
                   </span>
                   <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-500">
                     {board.ownerName}
+                  </span>
+                  <span className="rounded-md bg-leaf/10 px-2 py-1 text-xs font-semibold text-leaf">
+                    {getFlowPeriodLabel(board.period).replace(" 자금흐름", "")}
                   </span>
                 </div>
                 <h2 className="mt-3 text-xl font-semibold tracking-normal text-ink">
@@ -402,6 +483,20 @@ function getImportInputId(boardId: string) {
   return `asset-board-import-${boardId}`;
 }
 
+function getFormPeriod(form: BoardFormState): FlowPeriodSelection | null {
+  const year = Number(form.year);
+
+  if (!Number.isInteger(year) || year < 1900 || year > 2200) {
+    return null;
+  }
+
+  return {
+    periodType: form.periodType,
+    year,
+    quarter: form.periodType === "quarter" ? form.quarter : 1,
+  };
+}
+
 function toSafeFilename(value: string) {
   return (
     value
@@ -417,10 +512,11 @@ function parseBackupFile(value: unknown): BoardBackupFile {
     throw new Error("Invalid backup header");
   }
 
-  if (!isAssetBoard(value.board) || !Array.isArray(value.entries)) {
+  if (!isRecord(value.board) || !Array.isArray(value.entries)) {
     throw new Error("Invalid backup body");
   }
 
+  const board = parseAssetBoard(value.board);
   const entries = value.entries.map((entry) => {
     if (!isFlowEntry(entry)) {
       throw new Error("Invalid flow entry");
@@ -433,21 +529,34 @@ function parseBackupFile(value: unknown): BoardBackupFile {
     app: BACKUP_APP_ID,
     version: BACKUP_VERSION,
     exportedAt: typeof value.exportedAt === "string" ? value.exportedAt : new Date().toISOString(),
-    board: value.board,
+    board,
     entries,
   };
 }
 
-function isAssetBoard(value: unknown): value is AssetBoard {
-  return (
-    isRecord(value) &&
-    typeof value.id === "string" &&
-    typeof value.title === "string" &&
-    typeof value.ownerName === "string" &&
-    (typeof value.description === "undefined" || typeof value.description === "string") &&
-    typeof value.createdAt === "string" &&
-    typeof value.updatedAt === "string"
-  );
+function parseAssetBoard(value: Record<string, unknown>): AssetBoard {
+  if (
+    typeof value.id !== "string" ||
+    typeof value.title !== "string" ||
+    typeof value.ownerName !== "string" ||
+    (typeof value.description !== "undefined" && typeof value.description !== "string") ||
+    typeof value.createdAt !== "string" ||
+    typeof value.updatedAt !== "string"
+  ) {
+    throw new Error("Invalid board");
+  }
+
+  return {
+    id: value.id,
+    title: value.title,
+    ownerName: value.ownerName,
+    period: isFlowPeriodSelection(value.period)
+      ? value.period
+      : { periodType: "quarter", year: 2026, quarter: 3 },
+    description: value.description,
+    createdAt: value.createdAt,
+    updatedAt: value.updatedAt,
+  };
 }
 
 function isFlowEntry(value: unknown): value is FlowEntry {
@@ -473,6 +582,15 @@ function isSubcategoryAmount(value: unknown): value is SubcategoryAmount {
 
 function isFlowPeriodType(value: unknown): value is FlowPeriodType {
   return value === "quarter" || value === "year";
+}
+
+function isFlowPeriodSelection(value: unknown): value is FlowPeriodSelection {
+  return (
+    isRecord(value) &&
+    isFlowPeriodType(value.periodType) &&
+    typeof value.year === "number" &&
+    typeof value.quarter === "number"
+  );
 }
 
 function isTransactionType(value: unknown): value is TransactionType {

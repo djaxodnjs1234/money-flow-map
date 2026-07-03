@@ -2,15 +2,12 @@ import { useMemo, useState } from "react";
 import { Database, Layers3, RotateCcw } from "lucide-react";
 import CategorySummary from "../components/CategorySummary";
 import DashboardSummary from "../components/DashboardSummary";
-import FlowPeriodFilter from "../components/FlowPeriodFilter";
 import SankeyChart from "../components/SankeyChart";
 import { useFlowEntriesStore } from "../store/flowEntriesStore";
 import type { AssetBoard } from "../types/assetBoard";
-import type { FlowPeriodSelection } from "../types/flow";
 import {
   aggregateFlowByCategory,
   filterFlowEntriesByPeriod,
-  getAvailableFlowYears,
   getFlowPeriodLabel,
   getFlowSummaryMetrics,
   transformFlowToSankeyData,
@@ -22,17 +19,11 @@ interface DashboardPageProps {
 
 export default function DashboardPage({ board }: DashboardPageProps) {
   const { entries, resetToSample } = useFlowEntriesStore();
-  const [period, setPeriod] = useState<FlowPeriodSelection>({
-    periodType: "quarter",
-    year: 2026,
-    quarter: 3,
-  });
   const [showSubcategories, setShowSubcategories] = useState(false);
 
-  const years = useMemo(() => getAvailableFlowYears(entries), [entries]);
   const filteredEntries = useMemo(
-    () => filterFlowEntriesByPeriod(entries, period),
-    [entries, period],
+    () => filterFlowEntriesByPeriod(entries, board.period),
+    [board.period, entries],
   );
   const metrics = useMemo(() => getFlowSummaryMetrics(filteredEntries), [filteredEntries]);
   const sankeyData = useMemo(
@@ -48,7 +39,7 @@ export default function DashboardPage({ board }: DashboardPageProps) {
     [filteredEntries],
   );
   const chartHeight = showSubcategories
-    ? Math.max(940, Math.min(1320, 520 + sankeyData.nodes.length * 28))
+    ? Math.max(660, Math.min(780, 540 + sankeyData.nodes.length * 12))
     : 620;
 
   return (
@@ -57,21 +48,20 @@ export default function DashboardPage({ board }: DashboardPageProps) {
         <div>
           <p className="text-sm font-semibold text-river">{board.title}</p>
           <h1 className="mt-1 text-3xl font-semibold tracking-normal text-ink">
-            {getFlowPeriodLabel(period)}
+            {getFlowPeriodLabel(board.period)}
           </h1>
         </div>
 
         <button
           type="button"
           className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-soft transition hover:bg-slate-50"
-          onClick={resetToSample}
+          onClick={() => resetToSample(board.period)}
         >
           <RotateCcw className="h-4 w-4" aria-hidden="true" />
           샘플 복원
         </button>
       </div>
 
-      <FlowPeriodFilter value={period} years={years} onChange={setPeriod} />
       <DashboardSummary metrics={metrics} countLabel="대분류 수" />
 
       <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">

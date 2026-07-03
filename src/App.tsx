@@ -2,7 +2,7 @@ import { BarChart3, List, PencilLine, WalletCards } from "lucide-react";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useAssetBoardsStore } from "./store/assetBoardsStore";
 import { useFlowEntriesStore } from "./store/flowEntriesStore";
-import { getFlowSummaryMetrics } from "./utils/flowAggregate";
+import { filterFlowEntriesByPeriod, getFlowSummaryMetrics } from "./utils/flowAggregate";
 import { formatCompactKRW } from "./utils/format";
 
 type Page = "home" | "dashboard" | "input";
@@ -23,11 +23,15 @@ export default function App() {
   const boards = useAssetBoardsStore((state) => state.boards);
   const entries = useFlowEntriesStore((state) => state.entries);
   const setActiveBoardId = useFlowEntriesStore((state) => state.setActiveBoardId);
-  const metrics = useMemo(() => getFlowSummaryMetrics(entries), [entries]);
   const activeBoard = useMemo(
     () => (route.page === "home" ? null : boards.find((board) => board.id === route.boardId) ?? null),
     [boards, route],
   );
+  const activeEntries = useMemo(
+    () => (activeBoard ? filterFlowEntriesByPeriod(entries, activeBoard.period) : entries),
+    [activeBoard, entries],
+  );
+  const metrics = useMemo(() => getFlowSummaryMetrics(activeEntries), [activeEntries]);
 
   useEffect(() => {
     const handleHashChange = () => setRoute(parseRoute());
@@ -71,7 +75,7 @@ export default function App() {
               </p>
               <p className="text-sm text-slate-500">
                 {activeBoard
-                  ? `총 ${entries.length.toLocaleString("ko-KR")}개 입력 · 누적 잔액 ${formatCompactKRW(
+                  ? `총 ${activeEntries.length.toLocaleString("ko-KR")}개 입력 · 누적 잔액 ${formatCompactKRW(
                       metrics.netAmount,
                     )}`
                   : `${boards.length.toLocaleString("ko-KR")}개 자산관리 목록`}

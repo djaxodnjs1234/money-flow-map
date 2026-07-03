@@ -1,20 +1,13 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Edit3, RotateCcw, Save, Trash2, X } from "lucide-react";
+import { CalendarRange, Edit3, Plus, RotateCcw, Save, Trash2, X } from "lucide-react";
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, CATEGORY_LABELS } from "../constants/categories";
 import { getSubcategoryOptions } from "../constants/subcategories";
-import FlowPeriodFilter from "../components/FlowPeriodFilter";
 import { useFlowEntriesStore } from "../store/flowEntriesStore";
 import type { AssetBoard } from "../types/assetBoard";
 import type { FlowEntry, FlowPeriodSelection, SubcategoryAmount } from "../types/flow";
 import type { TransactionCategory, TransactionType } from "../types/transaction";
-import { filterFlowEntriesByPeriod, getAvailableFlowYears } from "../utils/flowAggregate";
+import { filterFlowEntriesByPeriod, getFlowPeriodLabel } from "../utils/flowAggregate";
 import { formatCompactKRW, formatKRW } from "../utils/format";
-
-const DEFAULT_PERIOD: FlowPeriodSelection = {
-  periodType: "quarter",
-  year: 2026,
-  quarter: 3,
-};
 
 interface InputPageProps {
   board: AssetBoard;
@@ -22,13 +15,11 @@ interface InputPageProps {
 
 export default function InputPage({ board }: InputPageProps) {
   const { entries, upsertEntry, deleteEntry, resetToSample, clearAll } = useFlowEntriesStore();
-  const [period, setPeriod] = useState<FlowPeriodSelection>(DEFAULT_PERIOD);
   const [editingEntry, setEditingEntry] = useState<FlowEntry | null>(null);
 
-  const years = useMemo(() => getAvailableFlowYears(entries), [entries]);
   const visibleEntries = useMemo(
-    () => filterFlowEntriesByPeriod(entries, period),
-    [entries, period],
+    () => filterFlowEntriesByPeriod(entries, board.period),
+    [board.period, entries],
   );
 
   function handleSubmit(entry: FlowEntry) {
@@ -50,7 +41,7 @@ export default function InputPage({ board }: InputPageProps) {
           <button
             type="button"
             className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-soft transition hover:bg-slate-50"
-            onClick={resetToSample}
+            onClick={() => resetToSample(board.period)}
           >
             <RotateCcw className="h-4 w-4" aria-hidden="true" />
             샘플 복원
@@ -66,10 +57,17 @@ export default function InputPage({ board }: InputPageProps) {
         </div>
       </div>
 
-      <FlowPeriodFilter value={period} years={years} onChange={setPeriod} />
+      <section className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white p-3 text-sm font-semibold text-ink shadow-soft">
+        <CalendarRange className="h-5 w-5 text-river" aria-hidden="true" />
+        입력 기간
+        <span className="rounded-md bg-river/10 px-2 py-1 text-river">
+          {getFlowPeriodLabel(board.period).replace(" 자금흐름", "")}
+        </span>
+      </section>
 
       <FlowEntryForm
-        period={period}
+        period={board.period}
+        entries={entries}
         editingEntry={editingEntry}
         onSubmit={handleSubmit}
         onCancelEdit={() => setEditingEntry(null)}
@@ -168,22 +166,33 @@ export default function InputPage({ board }: InputPageProps) {
 
 interface FlowEntryFormProps {
   period: FlowPeriodSelection;
+  entries: FlowEntry[];
   editingEntry: FlowEntry | null;
   onSubmit: (entry: FlowEntry) => void;
   onCancelEdit: () => void;
 }
 
-function FlowEntryForm({ period, editingEntry, onSubmit, onCancelEdit }: FlowEntryFormProps) {
+function FlowEntryForm({ period, entries, editingEntry, onSubmit, onCancelEdit }: FlowEntryFormProps) {
   const [type, setType] = useState<TransactionType>("expense");
   const [category, setCategory] = useState<TransactionCategory>(EXPENSE_CATEGORIES[0]);
   const [totalAmount, setTotalAmount] = useState("");
   const [selectedSubcategories, setSelectedSubcategories] = useState<string[]>([]);
   const [subcategoryAmounts, setSubcategoryAmounts] = useState<Record<string, string>>({});
+  const [customSubcategories, setCustomSubcategories] = useState<string[]>([]);
+  const [customSubcategoryName, setCustomSubcategoryName] = useState("");
   const [memo, setMemo] = useState("");
   const [error, setError] = useState("");
 
   const categories = type === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
-  const subcategoryOptions = getSubcategoryOptions(category);
+  const subcategoryOptions = useMemo(() => {
+    const savedSubcategories = entries
+      .filter((entry) => entry.type === type && entry.category === category)
+      .flatMap((entry) => entry.subcategories.map((subcategory) => subcategory.name));
+
+    return Array.from(
+      new Set([...getSubcategoryOptions(category), ...savedSubcategories, ...customSubcategories]),
+    );
+  }, [category, customSubcategories, entries, type]);
   const numericTotal = parseAmount(totalAmount);
   const selectedTotal = selectedSubcategories.reduce(
     (sum, name) => sum + parseAmount(subcategoryAmounts[name]),
@@ -193,14 +202,23 @@ function FlowEntryForm({ period, editingEntry, onSubmit, onCancelEdit }: FlowEnt
 
   useEffect(() => {
     if (!editingEntry) return;
+    const baseOptions = getSubcategoryOptions(editingEntry.category);
 
     setType(editingEntry.type);
     setCategory(editingEntry.category);
-    setTotalAmount(String(editingEntry.totalAmount));
+    setTotalAmount(formatAmountInput(String(editingEntry.totalAmount)));
     setSelectedSubcategories(editingEntry.subcategories.map((item) => item.name));
     setSubcategoryAmounts(
-      Object.fromEntries(editingEntry.subcategories.map((item) => [item.name, String(item.amount)])),
+      Object.fromEntries(
+        editingEntry.subcategories.map((item) => [item.name, formatAmountInput(String(item.amount))]),
+      ),
     );
+    setCustomSubcategories(
+      editingEntry.subcategories
+        .map((item) => item.name)
+        .filter((name) => !baseOptions.includes(name)),
+    );
+    setCustomSubcategoryName("");
     setMemo(editingEntry.memo ?? "");
     setError("");
   }, [editingEntry]);
@@ -227,7 +245,7 @@ function FlowEntryForm({ period, editingEntry, onSubmit, onCancelEdit }: FlowEnt
     if (remaining <= 0) return;
     setSubcategoryAmounts((current) => ({
       ...current,
-      [name]: String(parseAmount(current[name]) + remaining),
+      [name]: formatAmountInput(String(parseAmount(current[name]) + remaining)),
     }));
     setSelectedSubcategories((current) => (current.includes(name) ? current : [...current, name]));
   }
@@ -241,7 +259,7 @@ function FlowEntryForm({ period, editingEntry, onSubmit, onCancelEdit }: FlowEnt
       Object.fromEntries(
         selectedSubcategories.map((name, index) => [
           name,
-          String(index === selectedSubcategories.length - 1 ? last : base),
+          formatAmountInput(String(index === selectedSubcategories.length - 1 ? last : base)),
         ]),
       ),
     );
@@ -250,6 +268,29 @@ function FlowEntryForm({ period, editingEntry, onSubmit, onCancelEdit }: FlowEnt
   function resetSubcategories() {
     setSelectedSubcategories([]);
     setSubcategoryAmounts({});
+    setCustomSubcategories([]);
+    setCustomSubcategoryName("");
+    setError("");
+  }
+
+  function addCustomSubcategory() {
+    const name = customSubcategoryName.trim();
+
+    if (!name) {
+      setError("추가할 소분류 이름을 입력해주세요.");
+      return;
+    }
+
+    if (!subcategoryOptions.includes(name)) {
+      setCustomSubcategories((current) => [...current, name]);
+    }
+
+    setSelectedSubcategories((current) => (current.includes(name) ? current : [...current, name]));
+    setSubcategoryAmounts((current) => ({
+      ...current,
+      [name]: current[name] ?? "",
+    }));
+    setCustomSubcategoryName("");
     setError("");
   }
 
@@ -355,11 +396,10 @@ function FlowEntryForm({ period, editingEntry, onSubmit, onCancelEdit }: FlowEnt
             <input
               className="mt-1 h-10 w-full rounded-md border border-slate-200 px-3 text-sm text-ink outline-none transition focus:border-river focus:ring-2 focus:ring-river/20"
               inputMode="numeric"
-              min={1}
-              type="number"
+              type="text"
               value={totalAmount}
-              onChange={(event) => setTotalAmount(event.target.value)}
-              placeholder="예: 960000"
+              onChange={(event) => setTotalAmount(formatAmountInput(event.target.value))}
+              placeholder="예: 960,000"
               required
             />
           </label>
@@ -393,6 +433,32 @@ function FlowEntryForm({ period, editingEntry, onSubmit, onCancelEdit }: FlowEnt
             </button>
           </div>
 
+          <div className="mt-4 flex flex-col gap-2 rounded-md border border-slate-200 bg-white p-3 md:flex-row md:items-end">
+            <label className="min-w-0 flex-1 text-sm font-medium text-slate-600">
+              소분류 추가
+              <input
+                className="mt-1 h-10 w-full rounded-md border border-slate-200 px-3 text-sm text-ink outline-none transition focus:border-river focus:ring-2 focus:ring-river/20"
+                value={customSubcategoryName}
+                onChange={(event) => setCustomSubcategoryName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    addCustomSubcategory();
+                  }
+                }}
+                placeholder="예: 커피머신"
+              />
+            </label>
+            <button
+              type="button"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              onClick={addCustomSubcategory}
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              추가
+            </button>
+          </div>
+
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {subcategoryOptions.map((name) => {
               const selected = selectedSubcategories.includes(name);
@@ -416,14 +482,14 @@ function FlowEntryForm({ period, editingEntry, onSubmit, onCancelEdit }: FlowEnt
                   <div className="mt-2 flex gap-2">
                     <input
                       className="h-9 min-w-0 flex-1 rounded-md border border-slate-200 px-3 text-sm outline-none transition focus:border-river focus:ring-2 focus:ring-river/20 disabled:bg-slate-100"
-                      type="number"
+                      type="text"
                       inputMode="numeric"
                       disabled={!selected}
                       value={subcategoryAmounts[name] ?? ""}
                       onChange={(event) =>
                         setSubcategoryAmounts((current) => ({
                           ...current,
-                          [name]: event.target.value,
+                          [name]: formatAmountInput(event.target.value),
                         }))
                       }
                       placeholder="금액"
@@ -464,6 +530,11 @@ function FlowEntryForm({ period, editingEntry, onSubmit, onCancelEdit }: FlowEnt
 function parseAmount(value?: string) {
   const amount = Number(String(value ?? "").replaceAll(",", ""));
   return Number.isFinite(amount) ? Math.max(0, amount) : 0;
+}
+
+function formatAmountInput(value: string) {
+  const digits = value.replace(/[^\d]/g, "");
+  return digits ? Number(digits).toLocaleString("ko-KR") : "";
 }
 
 function normalizeSubcategories(

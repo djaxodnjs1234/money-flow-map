@@ -69,7 +69,7 @@ export default function SankeyChart({ data, height = 560, detailed = false }: Sa
         bottom: 24,
         left: detailed ? 150 : 120,
         nodeWidth: detailed ? 14 : 18,
-        nodeGap: detailed ? 18 : 20,
+        nodeGap: detailed ? 12 : 20,
         nodeAlign: "justify",
         layoutIterations: 64,
         draggable: true,
@@ -86,6 +86,11 @@ export default function SankeyChart({ data, height = 560, detailed = false }: Sa
           formatter: (params: { name: string }) => {
             const meta = nodeMeta.get(params.name);
             const value = nodeValues[params.name] ?? 0;
+
+            if (detailed && meta?.displayName) {
+              return `${meta.displayName} ${formatCompactKRW(value)}`;
+            }
+
             return `${formatLabel(meta?.displayName ?? params.name)}\n${formatCompactKRW(value)}`;
           },
         },
@@ -101,6 +106,17 @@ export default function SankeyChart({ data, height = 560, detailed = false }: Sa
         data: data.nodes.map((node) => ({
           ...node,
           depth: node.depth,
+          label:
+            detailed && node.displayName
+              ? {
+                  color: "#94a3b8",
+                  fontWeight: 500,
+                  fontSize: 10,
+                  lineHeight: 12,
+                  width: 168,
+                  overflow: "truncate",
+                }
+              : undefined,
           itemStyle: {
             color: CATEGORY_COLORS[node.category ?? node.name] ?? "#64748b",
           },

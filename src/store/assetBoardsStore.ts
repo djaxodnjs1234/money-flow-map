@@ -2,10 +2,12 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { SAMPLE_ASSET_BOARDS } from "../data/sampleAssetBoards";
 import type { AssetBoard } from "../types/assetBoard";
+import type { FlowPeriodSelection } from "../types/flow";
 
 interface AssetBoardInput {
   title: string;
   ownerName: string;
+  period: FlowPeriodSelection;
   description?: string;
 }
 
@@ -15,6 +17,12 @@ interface AssetBoardsState {
   updateBoard: (id: string, input: AssetBoardInput) => void;
   deleteBoard: (id: string) => void;
 }
+
+const DEFAULT_BOARD_PERIOD: FlowPeriodSelection = {
+  periodType: "quarter",
+  year: 2026,
+  quarter: 3,
+};
 
 export const useAssetBoardsStore = create<AssetBoardsState>()(
   persist(
@@ -26,6 +34,7 @@ export const useAssetBoardsStore = create<AssetBoardsState>()(
           id: createBoardId(input.title),
           title: input.title.trim(),
           ownerName: input.ownerName.trim(),
+          period: input.period,
           description: input.description?.trim(),
           createdAt: now,
           updatedAt: now,
@@ -45,6 +54,7 @@ export const useAssetBoardsStore = create<AssetBoardsState>()(
                   ...board,
                   title: input.title.trim(),
                   ownerName: input.ownerName.trim(),
+                  period: input.period,
                   description: input.description?.trim(),
                   updatedAt: new Date().toISOString(),
                 }
@@ -58,7 +68,18 @@ export const useAssetBoardsStore = create<AssetBoardsState>()(
     }),
     {
       name: "money-flow-asset-boards",
-      version: 1,
+      version: 2,
+      migrate: (persistedState) => {
+        const state = persistedState as Partial<AssetBoardsState> | undefined;
+        const boards = Array.isArray(state?.boards) ? state.boards : SAMPLE_ASSET_BOARDS;
+
+        return {
+          boards: boards.map((board) => ({
+            ...board,
+            period: board.period ?? DEFAULT_BOARD_PERIOD,
+          })),
+        };
+      },
     },
   ),
 );

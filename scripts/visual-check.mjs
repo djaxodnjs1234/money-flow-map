@@ -28,6 +28,10 @@ if (!boardListText.includes("홍길동의 자산관리")) {
   failures.push("asset board list did not render the default public board");
 }
 
+if (!boardListText.includes("2026년 3분기")) {
+  failures.push("asset board list did not show the fixed board period");
+}
+
 await page.getByRole("button", { name: "홍길동의 자산관리 수정" }).waitFor();
 await page.getByRole("button", { name: "홍길동의 자산관리 삭제" }).waitFor();
 await page.getByRole("button", { name: "홍길동의 자산관리 내보내기" }).waitFor();
@@ -56,18 +60,6 @@ if (summaryCardCount < 5) {
 
 await page.screenshot({ path: `${outDir}/dashboard.png`, fullPage: true });
 
-await page.getByRole("button", { name: "다음 연도" }).click();
-await page.locator("h1").filter({ hasText: "2027년" }).waitFor();
-
-const nextYearHeading = await page.locator("h1").first().textContent();
-if (!nextYearHeading?.includes("2027년")) {
-  failures.push("year stepper did not advance dashboard period to 2027");
-}
-
-await page.getByRole("button", { name: "이전 연도" }).click();
-await page.locator("h1").filter({ hasText: "2026년" }).waitFor();
-await page.waitForSelector("canvas", { timeout: 10000 });
-
 await page.getByRole("button", { name: "소분류 표시" }).click();
 await page.getByText("소분류 → 대분류").waitFor();
 
@@ -82,6 +74,15 @@ await page.screenshot({ path: `${outDir}/dashboard-detail.png`, fullPage: true }
 await page.getByRole("button", { name: "입력" }).click();
 await page.getByRole("heading", { name: "분기·연도별 카테고리 입력" }).waitFor();
 await page.locator("label").filter({ hasText: /^대분류/ }).locator("select").selectOption("온라인쇼핑");
+await page.getByLabel("대분류 총액").fill("1234567");
+const formattedTotalAmount = await page.getByLabel("대분류 총액").inputValue();
+if (formattedTotalAmount !== "1,234,567") {
+  failures.push("amount input did not format with comma separators");
+}
+
+await page.getByLabel("소분류 추가").fill("테스트소분류");
+await page.getByRole("button", { name: "추가" }).click();
+await page.getByText("테스트소분류").waitFor();
 
 const inputText = await page.locator("body").innerText();
 if (!inputText.includes("결제/충전") || !inputText.includes("서비스구독") || !inputText.includes("인터넷쇼핑")) {

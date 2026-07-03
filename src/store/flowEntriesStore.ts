@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { DEFAULT_BOARD_ID } from "../data/sampleAssetBoards";
 import { SAMPLE_FLOW_ENTRIES } from "../data/sampleFlowEntries";
-import type { FlowEntry } from "../types/flow";
+import type { FlowEntry, FlowPeriodSelection } from "../types/flow";
 
 interface FlowEntriesState {
   activeBoardId: string;
@@ -13,7 +13,7 @@ interface FlowEntriesState {
   deleteEntry: (id: string) => void;
   deleteBoardEntries: (boardId: string) => void;
   replaceBoardEntries: (boardId: string, entries: FlowEntry[]) => void;
-  resetToSample: () => void;
+  resetToSample: (period?: FlowPeriodSelection) => void;
   clearAll: () => void;
 }
 
@@ -86,14 +86,18 @@ export const useFlowEntriesStore = create<FlowEntriesState>()(
             entries: state.activeBoardId === boardId ? entries : state.entries,
           };
         }),
-      resetToSample: () =>
-        set((state) => ({
-          entries: SAMPLE_FLOW_ENTRIES,
-          entriesByBoardId: {
-            ...state.entriesByBoardId,
-            [state.activeBoardId]: SAMPLE_FLOW_ENTRIES,
-          },
-        })),
+      resetToSample: (period) =>
+        set((state) => {
+          const entries = period ? createSampleEntriesForPeriod(period) : SAMPLE_FLOW_ENTRIES;
+
+          return {
+            entries,
+            entriesByBoardId: {
+              ...state.entriesByBoardId,
+              [state.activeBoardId]: entries,
+            },
+          };
+        }),
       clearAll: () =>
         set((state) => ({
           entries: [],
@@ -142,4 +146,15 @@ function sortEntries(entries: FlowEntry[]) {
     if (b.periodType !== a.periodType) return b.periodType.localeCompare(a.periodType);
     return (b.quarter ?? 0) - (a.quarter ?? 0);
   });
+}
+
+function createSampleEntriesForPeriod(period: FlowPeriodSelection) {
+  return SAMPLE_FLOW_ENTRIES.filter((entry) => entry.periodType === period.periodType).map((entry) => ({
+    ...entry,
+    id: crypto.randomUUID(),
+    periodType: period.periodType,
+    year: period.year,
+    quarter: period.periodType === "quarter" ? period.quarter : undefined,
+    updatedAt: new Date().toISOString(),
+  }));
 }
