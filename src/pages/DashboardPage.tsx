@@ -5,6 +5,7 @@ import DashboardSummary from "../components/DashboardSummary";
 import FlowPeriodFilter from "../components/FlowPeriodFilter";
 import SankeyChart from "../components/SankeyChart";
 import { useFlowEntriesStore } from "../store/flowEntriesStore";
+import type { AssetBoard } from "../types/assetBoard";
 import type { FlowPeriodSelection } from "../types/flow";
 import {
   aggregateFlowByCategory,
@@ -15,7 +16,11 @@ import {
   transformFlowToSankeyData,
 } from "../utils/flowAggregate";
 
-export default function DashboardPage() {
+interface DashboardPageProps {
+  board: AssetBoard;
+}
+
+export default function DashboardPage({ board }: DashboardPageProps) {
   const { entries, resetToSample } = useFlowEntriesStore();
   const [period, setPeriod] = useState<FlowPeriodSelection>({
     periodType: "quarter",
@@ -50,7 +55,7 @@ export default function DashboardPage() {
     <div className="space-y-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-sm font-semibold text-river">Money Flow Map</p>
+          <p className="text-sm font-semibold text-river">{board.title}</p>
           <h1 className="mt-1 text-3xl font-semibold tracking-normal text-ink">
             {getFlowPeriodLabel(period)}
           </h1>

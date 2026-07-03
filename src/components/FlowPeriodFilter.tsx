@@ -15,7 +15,6 @@ const PERIODS: Array<{ value: FlowPeriodType; label: string }> = [
 
 const MIN_YEAR = 1900;
 const MAX_YEAR = 2200;
-const QUICK_YEARS = [2023, 2024, 2025, 2026];
 const YEAR_SUGGESTIONS_ID = "flow-year-suggestions";
 
 const clampYear = (year: number) => Math.min(MAX_YEAR, Math.max(MIN_YEAR, year));
@@ -129,23 +128,6 @@ export default function FlowPeriodFilter({ value, years, onChange }: FlowPeriodF
               </option>
             ))}
           </datalist>
-        </div>
-
-        <div className="flex flex-wrap gap-1">
-          {QUICK_YEARS.map((year) => (
-            <button
-              key={year}
-              type="button"
-              className={`h-10 rounded-md border px-3 text-sm font-semibold transition ${
-                value.year === year
-                  ? "border-river bg-river text-white"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-river/40 hover:bg-river/5"
-              }`}
-              onClick={() => commitYear(String(year))}
-            >
-              {String(year).slice(2)}년
-            </button>
-          ))}
         </div>
 
         {value.periodType === "quarter" && (

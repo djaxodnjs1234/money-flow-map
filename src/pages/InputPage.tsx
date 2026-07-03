@@ -4,6 +4,7 @@ import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, CATEGORY_LABELS } from "../const
 import { getSubcategoryOptions } from "../constants/subcategories";
 import FlowPeriodFilter from "../components/FlowPeriodFilter";
 import { useFlowEntriesStore } from "../store/flowEntriesStore";
+import type { AssetBoard } from "../types/assetBoard";
 import type { FlowEntry, FlowPeriodSelection, SubcategoryAmount } from "../types/flow";
 import type { TransactionCategory, TransactionType } from "../types/transaction";
 import { filterFlowEntriesByPeriod, getAvailableFlowYears } from "../utils/flowAggregate";
@@ -15,7 +16,11 @@ const DEFAULT_PERIOD: FlowPeriodSelection = {
   quarter: 3,
 };
 
-export default function InputPage() {
+interface InputPageProps {
+  board: AssetBoard;
+}
+
+export default function InputPage({ board }: InputPageProps) {
   const { entries, upsertEntry, deleteEntry, resetToSample, clearAll } = useFlowEntriesStore();
   const [period, setPeriod] = useState<FlowPeriodSelection>(DEFAULT_PERIOD);
   const [editingEntry, setEditingEntry] = useState<FlowEntry | null>(null);
@@ -35,7 +40,7 @@ export default function InputPage() {
     <div className="space-y-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-sm font-semibold text-river">Input</p>
+          <p className="text-sm font-semibold text-river">{board.title}</p>
           <h1 className="mt-1 text-3xl font-semibold tracking-normal text-ink">
             분기·연도별 카테고리 입력
           </h1>

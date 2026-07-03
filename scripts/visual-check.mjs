@@ -21,6 +21,18 @@ page.on("console", (message) => {
 page.on("pageerror", (error) => failures.push(`pageerror: ${error.message}`));
 
 await page.goto(baseUrl, { waitUntil: "networkidle" });
+await page.locator("h1").filter({ hasText: "자산관리 목록" }).waitFor();
+
+const boardListText = await page.locator("body").innerText();
+if (!boardListText.includes("홍길동의 자산관리")) {
+  failures.push("asset board list did not render the default public board");
+}
+
+await page.getByRole("button", { name: "홍길동의 자산관리 수정" }).waitFor();
+await page.getByRole("button", { name: "홍길동의 자산관리 삭제" }).waitFor();
+await page.screenshot({ path: `${outDir}/boards.png`, fullPage: true });
+
+await page.getByRole("button", { name: "홍길동의 자산관리 열기" }).click();
 await page.locator("h1").filter({ hasText: "자금흐름" }).waitFor();
 await page.waitForSelector("canvas", { timeout: 10000 });
 
@@ -91,8 +103,9 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      checked: ["dashboard", "dashboard-detail", "input"],
+      checked: ["boards", "dashboard", "dashboard-detail", "input"],
       screenshots: [
+        `${outDir}/boards.png`,
         `${outDir}/dashboard.png`,
         `${outDir}/dashboard-detail.png`,
         `${outDir}/input.png`,
