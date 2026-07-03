@@ -30,6 +30,8 @@ if (!boardListText.includes("홍길동의 자산관리")) {
 
 await page.getByRole("button", { name: "홍길동의 자산관리 수정" }).waitFor();
 await page.getByRole("button", { name: "홍길동의 자산관리 삭제" }).waitFor();
+await page.getByRole("button", { name: "홍길동의 자산관리 내보내기" }).waitFor();
+await page.getByRole("button", { name: "홍길동의 자산관리 가져오기" }).waitFor();
 await page.screenshot({ path: `${outDir}/boards.png`, fullPage: true });
 
 await page.getByRole("button", { name: "홍길동의 자산관리 열기" }).click();

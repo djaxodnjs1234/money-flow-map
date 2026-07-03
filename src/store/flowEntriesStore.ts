@@ -12,6 +12,7 @@ interface FlowEntriesState {
   upsertEntry: (entry: FlowEntry) => void;
   deleteEntry: (id: string) => void;
   deleteBoardEntries: (boardId: string) => void;
+  replaceBoardEntries: (boardId: string, entries: FlowEntry[]) => void;
   resetToSample: () => void;
   clearAll: () => void;
 }
@@ -71,6 +72,18 @@ export const useFlowEntriesStore = create<FlowEntriesState>()(
             activeBoardId,
             entriesByBoardId,
             entries: entriesByBoardId[activeBoardId] ?? [],
+          };
+        }),
+      replaceBoardEntries: (boardId, nextEntries) =>
+        set((state) => {
+          const entries = sortEntries(nextEntries);
+
+          return {
+            entriesByBoardId: {
+              ...state.entriesByBoardId,
+              [boardId]: entries,
+            },
+            entries: state.activeBoardId === boardId ? entries : state.entries,
           };
         }),
       resetToSample: () =>

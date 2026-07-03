@@ -1,8 +1,22 @@
-import { useMemo, useState, type FormEvent } from "react";
-import { Database, Edit3, ExternalLink, Plus, Save, Trash2, X } from "lucide-react";
+import { useMemo, useState, type ChangeEvent, type FormEvent } from "react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Database,
+  Download,
+  Edit3,
+  ExternalLink,
+  Plus,
+  Save,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 import { useAssetBoardsStore } from "../store/assetBoardsStore";
 import { useFlowEntriesStore } from "../store/flowEntriesStore";
 import type { AssetBoard } from "../types/assetBoard";
+import type { FlowEntry, FlowPeriodType, SubcategoryAmount } from "../types/flow";
+import type { TransactionType } from "../types/transaction";
 import { getFlowSummaryMetrics } from "../utils/flowAggregate";
 import { formatCompactKRW } from "../utils/format";
 
@@ -16,20 +30,35 @@ interface BoardFormState {
   description: string;
 }
 
+interface BoardBackupFile {
+  app: "money-flow-map";
+  version: 1;
+  exportedAt: string;
+  board: AssetBoard;
+  entries: FlowEntry[];
+}
+
+type Notice = { tone: "success" | "error"; message: string } | null;
+
 const EMPTY_FORM: BoardFormState = {
   title: "",
   ownerName: "",
   description: "",
 };
 
+const BACKUP_APP_ID = "money-flow-map";
+const BACKUP_VERSION = 1;
+
 export default function AssetBoardsPage({ onOpenBoard }: AssetBoardsPageProps) {
   const { boards, addBoard, updateBoard, deleteBoard } = useAssetBoardsStore();
   const entriesByBoardId = useFlowEntriesStore((state) => state.entriesByBoardId);
   const deleteBoardEntries = useFlowEntriesStore((state) => state.deleteBoardEntries);
+  const replaceBoardEntries = useFlowEntriesStore((state) => state.replaceBoardEntries);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingBoard, setEditingBoard] = useState<AssetBoard | null>(null);
   const [form, setForm] = useState<BoardFormState>(EMPTY_FORM);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState<Notice>(null);
 
   const boardRows = useMemo(
     () =>
@@ -96,6 +125,59 @@ export default function AssetBoardsPage({ onOpenBoard }: AssetBoardsPageProps) {
 
     deleteBoard(board.id);
     deleteBoardEntries(board.id);
+    setNotice({ tone: "success", message: `${board.title} 목록을 삭제했습니다.` });
+  }
+
+  function handleExport(board: AssetBoard) {
+    const backup: BoardBackupFile = {
+      app: BACKUP_APP_ID,
+      version: BACKUP_VERSION,
+      exportedAt: new Date().toISOString(),
+      board,
+      entries: entriesByBoardId[board.id] ?? [],
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], {
+      type: "application/json;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `${toSafeFilename(board.title)}-backup.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setNotice({ tone: "success", message: `${board.title} 백업 파일을 내보냈습니다.` });
+  }
+
+  async function handleImport(board: AssetBoard, event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) return;
+
+    try {
+      const backup = parseBackupFile(JSON.parse(await file.text()));
+      const confirmed = window.confirm(
+        `${board.title} 목록의 현재 입력 데이터를 가져온 백업으로 덮어쓸까요?`,
+      );
+      if (!confirmed) return;
+
+      updateBoard(board.id, {
+        title: backup.board.title,
+        ownerName: backup.board.ownerName,
+        description: backup.board.description,
+      });
+      replaceBoardEntries(board.id, backup.entries);
+      setNotice({
+        tone: "success",
+        message: `${backup.entries.length.toLocaleString("ko-KR")}개 입력 내역을 가져왔습니다.`,
+      });
+    } catch {
+      setNotice({
+        tone: "error",
+        message: "가져오기 실패: Money Flow Map 백업 JSON 파일인지 확인해주세요.",
+      });
+    }
   }
 
   return (
@@ -115,6 +197,24 @@ export default function AssetBoardsPage({ onOpenBoard }: AssetBoardsPageProps) {
           목록 추가
         </button>
       </div>
+
+      {notice && (
+        <div
+          className={`flex items-center gap-2 rounded-lg border px-4 py-3 text-sm font-semibold ${
+            notice.tone === "success"
+              ? "border-green-200 bg-green-50 text-green-700"
+              : "border-red-200 bg-red-50 text-red-700"
+          }`}
+          role={notice.tone === "error" ? "alert" : "status"}
+        >
+          {notice.tone === "success" ? (
+            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+          ) : (
+            <AlertCircle className="h-4 w-4" aria-hidden="true" />
+          )}
+          {notice.message}
+        </div>
+      )}
 
       {isFormOpen && (
         <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
@@ -237,15 +337,45 @@ export default function AssetBoardsPage({ onOpenBoard }: AssetBoardsPageProps) {
               <Metric label="잔액" value={formatCompactKRW(metrics.netAmount)} />
             </div>
 
-            <button
-              type="button"
-              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
-              onClick={() => onOpenBoard(board.id)}
-              aria-label={`${board.title} 열기`}
-            >
-              <ExternalLink className="h-4 w-4" aria-hidden="true" />
-              열기
-            </button>
+            <div className="mt-4 grid gap-2 md:grid-cols-3">
+              <button
+                type="button"
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
+                onClick={() => onOpenBoard(board.id)}
+                aria-label={`${board.title} 열기`}
+              >
+                <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                열기
+              </button>
+
+              <button
+                type="button"
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                onClick={() => handleExport(board)}
+                aria-label={`${board.title} 내보내기`}
+              >
+                <Download className="h-4 w-4" aria-hidden="true" />
+                내보내기
+              </button>
+
+              <button
+                type="button"
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                onClick={() => document.getElementById(getImportInputId(board.id))?.click()}
+                aria-label={`${board.title} 가져오기`}
+              >
+                <Upload className="h-4 w-4" aria-hidden="true" />
+                가져오기
+              </button>
+              <input
+                id={getImportInputId(board.id)}
+                className="hidden"
+                type="file"
+                accept="application/json,.json"
+                aria-label={`${board.title} 백업 파일 선택`}
+                onChange={(event) => handleImport(board, event)}
+              />
+            </div>
           </article>
         ))}
       </section>
@@ -266,4 +396,89 @@ function Metric({ label, value }: { label: string; value: string }) {
       <p className="mt-1 truncate text-sm font-semibold text-ink">{value}</p>
     </div>
   );
+}
+
+function getImportInputId(boardId: string) {
+  return `asset-board-import-${boardId}`;
+}
+
+function toSafeFilename(value: string) {
+  return (
+    value
+      .trim()
+      .replace(/[\\/:*?"<>|]+/g, "-")
+      .replace(/\s+/g, "-")
+      .slice(0, 80) || "asset-board"
+  );
+}
+
+function parseBackupFile(value: unknown): BoardBackupFile {
+  if (!isRecord(value) || value.app !== BACKUP_APP_ID || value.version !== BACKUP_VERSION) {
+    throw new Error("Invalid backup header");
+  }
+
+  if (!isAssetBoard(value.board) || !Array.isArray(value.entries)) {
+    throw new Error("Invalid backup body");
+  }
+
+  const entries = value.entries.map((entry) => {
+    if (!isFlowEntry(entry)) {
+      throw new Error("Invalid flow entry");
+    }
+
+    return entry;
+  });
+
+  return {
+    app: BACKUP_APP_ID,
+    version: BACKUP_VERSION,
+    exportedAt: typeof value.exportedAt === "string" ? value.exportedAt : new Date().toISOString(),
+    board: value.board,
+    entries,
+  };
+}
+
+function isAssetBoard(value: unknown): value is AssetBoard {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.title === "string" &&
+    typeof value.ownerName === "string" &&
+    (typeof value.description === "undefined" || typeof value.description === "string") &&
+    typeof value.createdAt === "string" &&
+    typeof value.updatedAt === "string"
+  );
+}
+
+function isFlowEntry(value: unknown): value is FlowEntry {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    isFlowPeriodType(value.periodType) &&
+    typeof value.year === "number" &&
+    (typeof value.quarter === "undefined" || typeof value.quarter === "number") &&
+    isTransactionType(value.type) &&
+    typeof value.category === "string" &&
+    typeof value.totalAmount === "number" &&
+    Array.isArray(value.subcategories) &&
+    value.subcategories.every(isSubcategoryAmount) &&
+    (typeof value.memo === "undefined" || typeof value.memo === "string") &&
+    typeof value.updatedAt === "string"
+  );
+}
+
+function isSubcategoryAmount(value: unknown): value is SubcategoryAmount {
+  return isRecord(value) && typeof value.name === "string" && typeof value.amount === "number";
+}
+
+function isFlowPeriodType(value: unknown): value is FlowPeriodType {
+  return value === "quarter" || value === "year";
+}
+
+function isTransactionType(value: unknown): value is TransactionType {
+  return value === "income" || value === "expense";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
