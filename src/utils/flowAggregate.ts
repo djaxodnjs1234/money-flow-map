@@ -1,3 +1,4 @@
+import { INCOME_PARENT_CATEGORY } from "../constants/categories";
 import type { FlowEntry, FlowPeriodSelection } from "../types/flow";
 import type { TransactionType } from "../types/transaction";
 import type { SankeyData, SankeyLink, SankeyNode } from "./sankeyTransform";
@@ -60,8 +61,16 @@ export function aggregateFlowByCategory(
   entries: FlowEntry[],
   type: TransactionType,
 ): Record<string, number> {
+  if (type === "income") {
+    return aggregateIncomeSources(entries);
+  }
+
+  return aggregateExpenseCategories(entries);
+}
+
+function aggregateExpenseCategories(entries: FlowEntry[]): Record<string, number> {
   return entries
-    .filter((entry) => entry.type === type)
+    .filter((entry) => entry.type === "expense")
     .reduce<Record<string, number>>((acc, entry) => {
       acc[entry.category] = (acc[entry.category] ?? 0) + entry.totalAmount;
       return acc;
@@ -73,13 +82,14 @@ export function transformFlowToSankeyData(
   { showSubcategories }: TransformOptions,
 ): SankeyData {
   const metrics = getFlowSummaryMetrics(entries);
-  const incomeTotals = aggregateFlowByCategory(entries, "income");
-  const expenseTotals = aggregateFlowByCategory(entries, "expense");
+  const incomeTotals = aggregateIncomeSources(entries);
+  const expenseTotals = aggregateExpenseCategories(entries);
+  const expenseSubcategoryTotals = aggregateExpenseSubcategories(entries);
+  const orderedIncomeSources = sortTotalsDescending(incomeTotals);
+  const orderedExpenseCategories = sortTotalsDescending(expenseTotals);
   const nodes = new Map<string, SankeyNode>();
   const links: SankeyLink[] = [];
-  const hasDetailedIncome =
-    showSubcategories &&
-    entries.some((entry) => entry.type === "income" && hasMeaningfulSubcategories(entry));
+  const hasDetailedIncome = showSubcategories && orderedIncomeSources.length > 0;
   const incomeCategoryDepth = hasDetailedIncome ? 1 : 0;
   const totalIncomeDepth = hasDetailedIncome ? 2 : 1;
   const totalExpenseDepth = hasDetailedIncome ? 3 : 2;
@@ -92,39 +102,33 @@ export function transformFlowToSankeyData(
     }
   };
 
-  entries
-    .filter((entry) => entry.type === "income" && entry.totalAmount > 0)
-    .forEach((entry) => {
-      addNode({ name: entry.category, depth: incomeCategoryDepth, category: entry.category });
-      addNode({ name: "총수입", depth: totalIncomeDepth, category: "총수입" });
-
-      if (showSubcategories && hasMeaningfulSubcategories(entry)) {
-        entry.subcategories
-          .filter((subcategory) => subcategory.amount > 0)
-          .forEach((subcategory) => {
-            const nodeName = getSubcategoryNodeName(entry.category, subcategory.name);
-            addNode({
-              name: nodeName,
-              displayName: subcategory.name,
-              depth: 0,
-              category: entry.category,
-            });
-            links.push({ source: nodeName, target: entry.category, value: subcategory.amount });
-          });
-      }
-    });
-
-  Object.entries(incomeTotals).forEach(([category, value]) => {
-    if (value <= 0) return;
-    const entry = entries.find((item) => item.type === "income" && item.category === category);
+  if (metrics.totalIncome > 0) {
     addNode({
-      name: category,
-      depth: showSubcategories && hasMeaningfulSubcategories(entry) ? 1 : incomeCategoryDepth,
-      category,
+      name: INCOME_PARENT_CATEGORY,
+      depth: incomeCategoryDepth,
+      category: INCOME_PARENT_CATEGORY,
     });
     addNode({ name: "총수입", depth: totalIncomeDepth, category: "총수입" });
-    links.push({ source: category, target: "총수입", value });
-  });
+
+    if (showSubcategories) {
+      orderedIncomeSources.forEach(([source, value]) => {
+        const nodeName = getSubcategoryNodeName(INCOME_PARENT_CATEGORY, source);
+        addNode({
+          name: nodeName,
+          displayName: source,
+          depth: 0,
+          category: source,
+        });
+        links.push({ source: nodeName, target: INCOME_PARENT_CATEGORY, value });
+      });
+    }
+
+    links.push({
+      source: INCOME_PARENT_CATEGORY,
+      target: "총수입",
+      value: metrics.totalIncome,
+    });
+  }
 
   if (metrics.totalExpense > 0) {
     addNode({ name: "총수입", depth: totalIncomeDepth, category: "총수입" });
@@ -147,30 +151,25 @@ export function transformFlowToSankeyData(
     links.push({ source: "초과지출", target: "총지출", value: Math.abs(metrics.netAmount) });
   }
 
-  Object.entries(expenseTotals).forEach(([category, value]) => {
-    if (value <= 0) return;
+  orderedExpenseCategories.forEach(([category, value]) => {
     addNode({ name: "총지출", depth: totalExpenseDepth, category: "총지출" });
     addNode({ name: category, depth: expenseCategoryDepth, category });
     links.push({ source: "총지출", target: category, value });
   });
 
   if (showSubcategories) {
-    entries
-      .filter((entry) => entry.type === "expense" && entry.totalAmount > 0)
-      .forEach((entry) => {
-        entry.subcategories
-          .filter((subcategory) => subcategory.amount > 0)
-          .forEach((subcategory) => {
-            const nodeName = getSubcategoryNodeName(entry.category, subcategory.name);
-            addNode({
-              name: nodeName,
-              displayName: subcategory.name,
-              depth: terminalDepth,
-              category: entry.category,
-            });
-            links.push({ source: entry.category, target: nodeName, value: subcategory.amount });
-          });
+    orderedExpenseCategories.forEach(([category]) => {
+      sortTotalsDescending(expenseSubcategoryTotals[category] ?? {}).forEach(([subcategory, value]) => {
+        const nodeName = getSubcategoryNodeName(category, subcategory);
+        addNode({
+          name: nodeName,
+          displayName: subcategory,
+          depth: terminalDepth,
+          category,
+        });
+        links.push({ source: category, target: nodeName, value });
       });
+    });
   }
 
   return {
@@ -185,11 +184,51 @@ function sumEntries(entries: FlowEntry[], type: TransactionType) {
     .reduce((sum, entry) => sum + entry.totalAmount, 0);
 }
 
-function getSubcategoryNodeName(category: string, subcategory: string) {
-  return `${category} / ${subcategory}`;
+function aggregateIncomeSources(entries: FlowEntry[]): Record<string, number> {
+  return entries
+    .filter((entry) => entry.type === "income")
+    .reduce<Record<string, number>>((acc, entry) => {
+      if (entry.category === INCOME_PARENT_CATEGORY) {
+        entry.subcategories
+          .filter((subcategory) => subcategory.amount > 0)
+          .forEach((subcategory) => {
+            acc[subcategory.name] = (acc[subcategory.name] ?? 0) + subcategory.amount;
+          });
+        return acc;
+      }
+
+      acc[entry.category] = (acc[entry.category] ?? 0) + entry.totalAmount;
+      return acc;
+    }, {});
 }
 
-function hasMeaningfulSubcategories(entry?: FlowEntry) {
-  if (!entry) return false;
-  return entry.subcategories.some((subcategory) => subcategory.name !== "미분류");
+function aggregateExpenseSubcategories(entries: FlowEntry[]) {
+  return entries
+    .filter((entry) => entry.type === "expense")
+    .reduce<Record<string, Record<string, number>>>((acc, entry) => {
+      const categoryTotals = acc[entry.category] ?? {};
+
+      entry.subcategories
+        .filter((subcategory) => subcategory.amount > 0)
+        .forEach((subcategory) => {
+          categoryTotals[subcategory.name] =
+            (categoryTotals[subcategory.name] ?? 0) + subcategory.amount;
+        });
+
+      acc[entry.category] = categoryTotals;
+      return acc;
+    }, {});
+}
+
+function sortTotalsDescending(totals: Record<string, number>) {
+  return Object.entries(totals)
+    .filter(([, value]) => value > 0)
+    .sort(([nameA, valueA], [nameB, valueB]) => {
+      if (valueB !== valueA) return valueB - valueA;
+      return nameA.localeCompare(nameB, "ko-KR");
+    });
+}
+
+function getSubcategoryNodeName(category: string, subcategory: string) {
+  return `${category} / ${subcategory}`;
 }

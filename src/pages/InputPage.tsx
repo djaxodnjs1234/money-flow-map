@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { CalendarRange, Edit3, Plus, RotateCcw, Save, Trash2, X } from "lucide-react";
-import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, CATEGORY_LABELS } from "../constants/categories";
+import {
+  CATEGORY_LABELS,
+  EXPENSE_CATEGORIES,
+  INCOME_PARENT_CATEGORY,
+} from "../constants/categories";
 import { getSubcategoryOptions } from "../constants/subcategories";
 import { useFlowEntriesStore } from "../store/flowEntriesStore";
 import type { AssetBoard } from "../types/assetBoard";
@@ -183,7 +187,7 @@ function FlowEntryForm({ period, entries, editingEntry, onSubmit, onCancelEdit }
   const [memo, setMemo] = useState("");
   const [error, setError] = useState("");
 
-  const categories = type === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  const categories = type === "income" ? [INCOME_PARENT_CATEGORY] : EXPENSE_CATEGORIES;
   const subcategoryOptions = useMemo(() => {
     const savedSubcategories = entries
       .filter((entry) => entry.type === type && entry.category === category)
@@ -202,19 +206,21 @@ function FlowEntryForm({ period, entries, editingEntry, onSubmit, onCancelEdit }
 
   useEffect(() => {
     if (!editingEntry) return;
-    const baseOptions = getSubcategoryOptions(editingEntry.category);
+    const formCategory = getFormCategory(editingEntry);
+    const formSubcategories = getFormSubcategories(editingEntry);
+    const baseOptions = getSubcategoryOptions(formCategory);
 
     setType(editingEntry.type);
-    setCategory(editingEntry.category);
+    setCategory(formCategory);
     setTotalAmount(formatAmountInput(String(editingEntry.totalAmount)));
-    setSelectedSubcategories(editingEntry.subcategories.map((item) => item.name));
+    setSelectedSubcategories(formSubcategories.map((item) => item.name));
     setSubcategoryAmounts(
       Object.fromEntries(
-        editingEntry.subcategories.map((item) => [item.name, formatAmountInput(String(item.amount))]),
+        formSubcategories.map((item) => [item.name, formatAmountInput(String(item.amount))]),
       ),
     );
     setCustomSubcategories(
-      editingEntry.subcategories
+      formSubcategories
         .map((item) => item.name)
         .filter((name) => !baseOptions.includes(name)),
     );
@@ -224,7 +230,7 @@ function FlowEntryForm({ period, entries, editingEntry, onSubmit, onCancelEdit }
   }, [editingEntry]);
 
   function handleTypeChange(nextType: TransactionType) {
-    const nextCategory = nextType === "income" ? INCOME_CATEGORIES[0] : EXPENSE_CATEGORIES[0];
+    const nextCategory = nextType === "income" ? INCOME_PARENT_CATEGORY : EXPENSE_CATEGORIES[0];
     setType(nextType);
     setCategory(nextCategory);
     resetSubcategories();
@@ -313,7 +319,7 @@ function FlowEntryForm({ period, entries, editingEntry, onSubmit, onCancelEdit }
         amount: parseAmount(subcategoryAmounts[name]),
       })),
       numericTotal,
-      subcategoryOptions[0] ?? "미분류",
+      "미분류",
     );
 
     onSubmit({
@@ -322,7 +328,7 @@ function FlowEntryForm({ period, entries, editingEntry, onSubmit, onCancelEdit }
       year: period.year,
       quarter: period.periodType === "quarter" ? period.quarter : undefined,
       type,
-      category,
+      category: type === "income" ? INCOME_PARENT_CATEGORY : category,
       totalAmount: numericTotal,
       subcategories: normalizedSubcategories,
       memo,
@@ -527,6 +533,18 @@ function FlowEntryForm({ period, entries, editingEntry, onSubmit, onCancelEdit }
   );
 }
 
+function getFormCategory(entry: FlowEntry): TransactionCategory {
+  return entry.type === "income" ? INCOME_PARENT_CATEGORY : entry.category;
+}
+
+function getFormSubcategories(entry: FlowEntry): SubcategoryAmount[] {
+  if (entry.type === "income" && entry.category !== INCOME_PARENT_CATEGORY) {
+    return [{ name: entry.category, amount: entry.totalAmount }];
+  }
+
+  return entry.subcategories;
+}
+
 function parseAmount(value?: string) {
   const amount = Number(String(value ?? "").replaceAll(",", ""));
   return Number.isFinite(amount) ? Math.max(0, amount) : 0;
@@ -560,7 +578,10 @@ function normalizeSubcategories(
     }
   }
 
-  return positiveItems;
+  return positiveItems.sort((itemA, itemB) => {
+    if (itemB.amount !== itemA.amount) return itemB.amount - itemA.amount;
+    return itemA.name.localeCompare(itemB.name, "ko-KR");
+  });
 }
 
 function formatEntryPeriod(entry: Pick<FlowEntry, "periodType" | "year" | "quarter">) {

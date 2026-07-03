@@ -1,9 +1,16 @@
-import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from "./categories";
+import {
+  EXPENSE_CATEGORIES,
+  INCOME_PARENT_CATEGORY,
+  INCOME_SOURCE_CATEGORIES,
+} from "./categories";
 import type { TransactionCategory } from "../types/transaction";
 
-export const INCOME_SUBCATEGORIES: Record<string, readonly string[]> = Object.fromEntries(
-  INCOME_CATEGORIES.map((category) => [category, ["미분류"] as const]),
-);
+export const INCOME_SUBCATEGORIES: Record<string, readonly string[]> = {
+  [INCOME_PARENT_CATEGORY]: INCOME_SOURCE_CATEGORIES,
+  ...Object.fromEntries(
+    INCOME_SOURCE_CATEGORIES.map((category) => [category, ["미분류"] as const]),
+  ),
+};
 
 export const EXPENSE_SUBCATEGORIES: Record<string, readonly string[]> = {
   "경조/선물": ["선물"],

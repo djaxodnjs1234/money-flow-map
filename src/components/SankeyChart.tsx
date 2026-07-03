@@ -85,7 +85,7 @@ export default function SankeyChart({ data, height = 560, detailed = false }: Sa
         nodeWidth: detailed ? 12 : 16,
         nodeGap: detailed ? 14 : 24,
         nodeAlign: "justify",
-        layoutIterations: detailed ? 96 : 72,
+        layoutIterations: detailed ? 0 : 48,
         draggable: true,
         emphasis: {
           focus: "adjacency",
@@ -302,21 +302,17 @@ function getNodeLabelPosition(
   depth: number | undefined,
   isTotalNode: boolean,
   isSubcategory: boolean,
-): "left" | undefined {
+): "right" | undefined {
   if (!detailed || isTotalNode || isSubcategory) return undefined;
-  return depth !== undefined && depth >= 3 ? "left" : undefined;
+  return depth !== undefined && depth >= 3 ? "right" : undefined;
 }
 
 function getTotalLabelBackground(nodeName: string) {
-  if (nodeName === "순이익") return "rgba(153, 246, 228, 0.96)";
-  if (nodeName === "총지출") return "rgba(219, 234, 254, 0.96)";
-  if (nodeName === "초과지출") return "rgba(254, 226, 226, 0.96)";
-  return "rgba(220, 252, 231, 0.96)";
+  if (nodeName === "초과지출") return "rgba(148, 163, 184, 0.24)";
+  return "rgba(100, 116, 139, 0.16)";
 }
 
 function getTotalLabelBorder(nodeName: string) {
-  if (nodeName === "순이익") return "rgba(15, 159, 143, 0.35)";
-  if (nodeName === "총지출") return "rgba(47, 125, 225, 0.3)";
-  if (nodeName === "초과지출") return "rgba(220, 95, 69, 0.32)";
-  return "rgba(18, 51, 13, 0.22)";
+  if (nodeName === "초과지출") return "rgba(100, 116, 139, 0.28)";
+  return "rgba(71, 85, 105, 0.18)";
 }

@@ -12,6 +12,7 @@ import {
   getFlowSummaryMetrics,
   transformFlowToSankeyData,
 } from "../utils/flowAggregate";
+import { formatCompactKRW } from "../utils/format";
 
 interface DashboardPageProps {
   board: AssetBoard;
@@ -46,31 +47,44 @@ export default function DashboardPage({ board }: DashboardPageProps) {
     () => aggregateFlowByCategory(filteredEntries, "expense"),
     [filteredEntries],
   );
+  const topExpense = useMemo(
+    () =>
+      Object.entries(expenseTotals)
+        .sort(([, amountA], [, amountB]) => amountB - amountA)
+        .slice(0, 3)
+        .map(([label, value]) => ({ label, value })),
+    [expenseTotals],
+  );
   const chartHeight = showSubcategories
-    ? Math.max(820, Math.min(1080, 650 + sankeyData.nodes.length * 10))
+    ? Math.max(920, Math.min(1320, 720 + sankeyData.nodes.length * 14))
     : Math.max(700, Math.min(900, 580 + sankeyData.nodes.length * 18));
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-river">{board.title}</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-normal text-ink">
-            {getFlowPeriodLabel(board.period)}
-          </h1>
+      <section className="overflow-hidden rounded-lg bg-[linear-gradient(135deg,rgba(15,23,42,0.92),rgba(71,85,105,0.68))] p-6 text-white shadow-soft">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-white/70">{board.title}</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-normal lg:text-4xl">
+              {getFlowPeriodLabel(board.period)}
+            </h1>
+            <p className="mt-3 text-sm font-medium text-white/70">
+              순이익 {formatCompactKRW(metrics.netAmount)} · {filteredEntries.length.toLocaleString("ko-KR")}개 입력
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className="inline-flex items-center justify-center gap-2 rounded-md border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
+            onClick={() => resetToSample(board.period)}
+          >
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+            샘플 복원
+          </button>
         </div>
+      </section>
 
-        <button
-          type="button"
-          className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-soft transition hover:bg-slate-50"
-          onClick={() => resetToSample(board.period)}
-        >
-          <RotateCcw className="h-4 w-4" aria-hidden="true" />
-          샘플 복원
-        </button>
-      </div>
-
-      <DashboardSummary metrics={metrics} countLabel="입력 건수" topIncome={topIncome} />
+      <DashboardSummary metrics={metrics} topExpense={topExpense} topIncome={topIncome} />
 
       <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
         <div className="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:items-center lg:justify-between">
@@ -110,7 +124,7 @@ export default function DashboardPage({ board }: DashboardPageProps) {
 
       <div className="grid gap-5 xl:grid-cols-2">
         <CategorySummary
-          title="수입 대분류 합계"
+          title="수입 항목 합계"
           totals={incomeTotals}
           emptyText="선택한 기간에 수입 입력이 없습니다."
         />

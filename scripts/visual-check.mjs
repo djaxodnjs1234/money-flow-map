@@ -44,7 +44,6 @@ await page.waitForSelector("canvas", { timeout: 10000 });
 
 const heading = await page.locator("h1").first().textContent();
 const canvasBox = await page.locator("canvas").first().boundingBox();
-const summaryCardCount = await page.locator("section article").count();
 const dashboardText = await page.locator("body").innerText();
 
 if (!heading?.includes("자금흐름")) {
@@ -55,12 +54,12 @@ if (!canvasBox || canvasBox.width < 600 || canvasBox.height < 300) {
   failures.push("sankey canvas is missing or too small");
 }
 
-if (summaryCardCount < 5) {
-  failures.push("dashboard summary cards did not render");
-}
-
-if (!dashboardText.includes("순이익") || !dashboardText.includes("수익 Top 3")) {
-  failures.push("dashboard did not render the profit and income top 3 cards");
+if (
+  !dashboardText.includes("순이익") ||
+  !dashboardText.includes("수입 TOP 3") ||
+  !dashboardText.includes("지출 TOP 3")
+) {
+  failures.push("dashboard did not render the profit and top 3 summary area");
 }
 
 await page.screenshot({ path: `${outDir}/dashboard.png`, fullPage: true });
@@ -92,6 +91,18 @@ await page.getByText("테스트소분류").waitFor();
 const inputText = await page.locator("body").innerText();
 if (!inputText.includes("결제/충전") || !inputText.includes("서비스구독") || !inputText.includes("인터넷쇼핑")) {
   failures.push("input page did not show expected online shopping subcategories");
+}
+
+await page.locator("label").filter({ hasText: /^구분/ }).locator("select").selectOption("income");
+const incomeCategoryValue = await page
+  .locator("label")
+  .filter({ hasText: /^대분류/ })
+  .locator("select")
+  .inputValue();
+const incomeInputText = await page.locator("body").innerText();
+
+if (incomeCategoryValue !== "수입" || !incomeInputText.includes("급여") || !incomeInputText.includes("상여금")) {
+  failures.push("income input did not use 수입 as the parent category with income sources as subcategories");
 }
 
 const savedRows = await page.locator("tbody tr").count();

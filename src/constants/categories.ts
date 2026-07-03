@@ -17,7 +17,9 @@ export const EXPENSE_CATEGORIES = [
   "기타지출",
 ] as const;
 
-export const INCOME_CATEGORIES = [
+export const INCOME_PARENT_CATEGORY = "수입" as const;
+
+export const INCOME_SOURCE_CATEGORIES = [
   "급여",
   "상여금",
   "사업수입",
@@ -34,46 +36,52 @@ export const INCOME_CATEGORIES = [
   "기타수입",
 ] as const;
 
+export const INCOME_CATEGORIES = [
+  INCOME_PARENT_CATEGORY,
+  ...INCOME_SOURCE_CATEGORIES,
+] as const;
+
 export const CATEGORY_LABELS = {
   income: "수입",
   expense: "지출",
 } as const;
 
 export const CATEGORY_COLORS: Record<string, string> = {
+  수입: "#0f766e",
   급여: "#65a30d",
-  상여금: "#84cc16",
-  사업수입: "#16a34a",
-  아르바이트: "#22c55e",
+  상여금: "#f59e0b",
+  사업수입: "#8b5cf6",
+  아르바이트: "#06b6d4",
   용돈: "#a3e635",
   금융수입: "#14b8a6",
-  보험금: "#2dd4bf",
+  보험금: "#ef4444",
   장학금: "#0891b2",
-  부동산: "#0f766e",
-  중고거래: "#059669",
-  SNS: "#10b981",
-  앱테크: "#34d399",
-  더치페이: "#6ee7b7",
+  부동산: "#a16207",
+  중고거래: "#db2777",
+  SNS: "#7c3aed",
+  앱테크: "#f97316",
+  더치페이: "#0d9488",
   기타수입: "#64748b",
   총수입: "#12330d",
   총지출: "#2f7de1",
   순이익: "#0f9f8f",
   초과지출: "#dc5f45",
-  식비: "#d97706",
+  식비: "#e11d48",
   "카페/간식": "#b45309",
-  "술/유흥": "#c2410c",
-  생활: "#ea580c",
+  "술/유흥": "#7c2d12",
+  생활: "#0ea5e9",
   온라인쇼핑: "#f97316",
-  "패션/쇼핑": "#fb923c",
-  "뷰티/미용": "#e11d48",
-  교통: "#7c3aed",
+  "패션/쇼핑": "#db2777",
+  "뷰티/미용": "#a855f7",
+  교통: "#2563eb",
   "경조/선물": "#be123c",
-  "교육/학습": "#2563eb",
+  "교육/학습": "#4f46e5",
   금융: "#475569",
   "문화/여가": "#9333ea",
-  "여행/숙박": "#0ea5e9",
+  "여행/숙박": "#06b6d4",
   "의료/건강": "#10b981",
   "주거/통신": "#0f766e",
-  기타지출: "#64748b",
+  기타지출: "#78716c",
 };
 
 export function isIncomeCategory(category: string): category is (typeof INCOME_CATEGORIES)[number] {
