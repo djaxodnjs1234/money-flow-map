@@ -59,9 +59,14 @@ if (
   !dashboardText.includes("순이익") ||
   !dashboardText.includes("수입 TOP 3") ||
   !dashboardText.includes("지출 TOP 3") ||
-  !dashboardText.includes("이미지 ZIP")
+  !dashboardText.includes("이미지 ZIP") ||
+  !dashboardText.includes("홍길동의 자산관리 · 2026년 3분기 자금흐름")
 ) {
-  failures.push("dashboard did not render the profit, top 3, and diagram export area");
+  failures.push("dashboard did not render the title, profit, top 3, and diagram export area");
+}
+
+if (await page.getByRole("button", { name: "목록" }).count()) {
+  failures.push("dashboard header should not show the old list button");
 }
 
 const [zipDownload] = await Promise.all([
@@ -74,8 +79,12 @@ if (!zipPath) {
 } else {
   const zip = await JSZip.loadAsync(await readFile(zipPath));
   const pngFiles = Object.keys(zip.files).filter((name) => name.endsWith(".png"));
+  const dbFiles = Object.keys(zip.files).filter((name) => name.endsWith("-db.json"));
   if (pngFiles.length !== 2) {
     failures.push(`diagram zip should contain 2 png files, found ${pngFiles.length}`);
+  }
+  if (dbFiles.length !== 1) {
+    failures.push(`diagram zip should contain 1 db json file, found ${dbFiles.length}`);
   }
 }
 
@@ -92,6 +101,10 @@ if (!detailCanvasBox || detailCanvasBox.width < 600 || detailCanvasBox.height < 
 
 await page.screenshot({ path: `${outDir}/dashboard-detail.png`, fullPage: true });
 
+await page.getByRole("button", { name: "입력" }).click();
+await page.getByRole("heading", { name: "분기·연도별 카테고리 입력" }).waitFor();
+await page.getByRole("button", { name: "대시보드" }).click();
+await page.getByText("소분류 → 대분류").waitFor();
 await page.getByRole("button", { name: "입력" }).click();
 await page.getByRole("heading", { name: "분기·연도별 카테고리 입력" }).waitFor();
 await page.locator("label").filter({ hasText: /^대분류/ }).locator("select").selectOption("온라인쇼핑");
@@ -128,6 +141,9 @@ if (savedRows < 1) {
 }
 
 await page.screenshot({ path: `${outDir}/input.png`, fullPage: true });
+
+await page.getByRole("button", { name: "홈으로 이동" }).click();
+await page.locator("h1").filter({ hasText: "자산관리 목록" }).waitFor();
 
 await browser.close();
 

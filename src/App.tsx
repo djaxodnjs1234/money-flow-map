@@ -1,4 +1,4 @@
-import { BarChart3, List, PencilLine, WalletCards } from "lucide-react";
+import { BarChart3, PencilLine, WalletCards } from "lucide-react";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useAssetBoardsStore } from "./store/assetBoardsStore";
 import { useFlowEntriesStore } from "./store/flowEntriesStore";
@@ -65,11 +65,16 @@ export default function App() {
     <div className="min-h-screen bg-paper text-ink">
       <header className="sticky top-0 z-10 border-b border-slate-200/80 bg-paper/90 backdrop-blur">
         <div className="mx-auto flex max-w-[1500px] flex-col gap-3 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-ink text-white shadow-soft">
+          <button
+            type="button"
+            className="flex min-w-0 items-center gap-3 text-left"
+            onClick={navigateHome}
+            aria-label="홈으로 이동"
+          >
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-ink text-white shadow-soft transition hover:bg-slate-700">
               <WalletCards className="h-6 w-6" aria-hidden="true" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-xl font-semibold tracking-normal text-ink">
                 {activeBoard?.title ?? "Money Flow Map"}
               </p>
@@ -81,19 +86,9 @@ export default function App() {
                   : `${boards.length.toLocaleString("ko-KR")}개 자산관리 목록`}
               </p>
             </div>
-          </div>
+          </button>
 
           <nav className="flex flex-wrap items-center gap-2">
-            {activeBoard && (
-              <button
-                type="button"
-                className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-                onClick={navigateHome}
-              >
-                <List className="h-4 w-4" aria-hidden="true" />
-                목록
-              </button>
-            )}
             {activeBoard &&
               NAV_ITEMS.map(({ page: itemPage, label, Icon }) => (
                 <button
@@ -123,10 +118,16 @@ export default function App() {
           }
         >
           {route.page === "home" && <AssetBoardsPage onOpenBoard={openBoard} />}
-          {route.page === "dashboard" && activeBoard && (
-            <DashboardPage board={activeBoard} />
+          {activeBoard && (
+            <>
+              <section hidden={route.page !== "dashboard"}>
+                <DashboardPage board={activeBoard} />
+              </section>
+              <section hidden={route.page !== "input"}>
+                <InputPage board={activeBoard} />
+              </section>
+            </>
           )}
-          {route.page === "input" && activeBoard && <InputPage board={activeBoard} />}
         </Suspense>
       </main>
     </div>

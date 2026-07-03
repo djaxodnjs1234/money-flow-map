@@ -33,6 +33,7 @@ export default function DashboardPage({ board }: DashboardPageProps) {
   const setSankeyLayout = useSankeyLayoutStore((state) => state.setLayout);
   const [showSubcategories, setShowSubcategories] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const diagramTitle = `${board.title} · ${getFlowPeriodLabel(board.period)}`;
 
   const filteredEntries = useMemo(
     () => filterFlowEntriesByPeriod(entries, board.period),
@@ -97,17 +98,27 @@ export default function DashboardPage({ board }: DashboardPageProps) {
         detailed: false,
         height: getChartHeight(basicSankeyData, false),
         layoutPositions: basicLayout,
+        title: diagramTitle,
       });
       const detailedImage = await renderSankeyImage({
         data: detailedSankeyData,
         detailed: true,
         height: getChartHeight(detailedSankeyData, true),
         layoutPositions: detailedLayout,
+        title: diagramTitle,
       });
+      const databaseBackup = {
+        app: "money-flow-map",
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        board,
+        entries,
+      };
 
       zip.file(`${safeName}-소분류-표시없음.png`, basicImage);
       zip.file(`${safeName}-소분류-표시.png`, detailedImage);
-      downloadBlob(await zip.generateAsync({ type: "blob" }), `${safeName}-diagram-images.zip`);
+      zip.file(`${safeName}-db.json`, JSON.stringify(databaseBackup, null, 2));
+      downloadBlob(await zip.generateAsync({ type: "blob" }), `${safeName}-diagram-package.zip`);
     } finally {
       setIsExporting(false);
     }
@@ -143,7 +154,7 @@ export default function DashboardPage({ board }: DashboardPageProps) {
       <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
         <div className="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-ink">자금흐름 Sankey</h2>
+            <h2 className="text-lg font-semibold text-ink">{diagramTitle}</h2>
             <p className="mt-1 text-sm text-slate-500">
               {showSubcategories
                 ? "소분류 → 대분류 → 총수익/총지출 → 대분류 → 소분류"
@@ -179,12 +190,13 @@ export default function DashboardPage({ board }: DashboardPageProps) {
           </div>
         </div>
         <div className="overflow-x-auto bg-white px-2 py-3">
-          <div className={showSubcategories ? "min-w-[1180px]" : "min-w-[980px]"}>
+          <div className={showSubcategories ? "min-w-[1320px]" : "min-w-[1080px]"}>
             <SankeyChart
               data={sankeyData}
               height={chartHeight}
               detailed={showSubcategories}
               layoutPositions={activeLayout}
+              title={diagramTitle}
               onLayoutChange={(positions) =>
                 setSankeyLayout(board.id, showSubcategories ? "detailed" : "basic", positions)
               }
@@ -211,10 +223,10 @@ export default function DashboardPage({ board }: DashboardPageProps) {
 
 function getChartHeight(data: SankeyData, detailed: boolean) {
   if (detailed) {
-    return Math.max(760, Math.min(980, 650 + data.nodes.length * 8));
+    return Math.max(860, Math.min(1120, 720 + data.nodes.length * 12));
   }
 
-  return Math.max(640, Math.min(780, 580 + data.nodes.length * 10));
+  return Math.max(700, Math.min(840, 620 + data.nodes.length * 8));
 }
 
 async function renderSankeyImage({
@@ -222,13 +234,15 @@ async function renderSankeyImage({
   detailed,
   height,
   layoutPositions,
+  title,
 }: {
   data: SankeyData;
   detailed: boolean;
   height: number;
   layoutPositions: SankeyLayoutPositions;
+  title: string;
 }) {
-  const width = detailed ? 1500 : 1360;
+  const width = detailed ? 1700 : 1450;
   const container = document.createElement("div");
 
   Object.assign(container.style, {
@@ -255,6 +269,7 @@ async function renderSankeyImage({
         data,
         detailed,
         layoutPositions,
+        title,
       }),
       { notMerge: true, lazyUpdate: false },
     );
