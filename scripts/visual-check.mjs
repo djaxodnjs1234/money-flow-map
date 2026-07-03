@@ -45,6 +45,7 @@ await page.waitForSelector("canvas", { timeout: 10000 });
 const heading = await page.locator("h1").first().textContent();
 const canvasBox = await page.locator("canvas").first().boundingBox();
 const summaryCardCount = await page.locator("section article").count();
+const dashboardText = await page.locator("body").innerText();
 
 if (!heading?.includes("자금흐름")) {
   failures.push("dashboard heading is missing the period label");
@@ -56,6 +57,10 @@ if (!canvasBox || canvasBox.width < 600 || canvasBox.height < 300) {
 
 if (summaryCardCount < 5) {
   failures.push("dashboard summary cards did not render");
+}
+
+if (!dashboardText.includes("순이익") || !dashboardText.includes("수익 Top 3")) {
+  failures.push("dashboard did not render the profit and income top 3 cards");
 }
 
 await page.screenshot({ path: `${outDir}/dashboard.png`, fullPage: true });

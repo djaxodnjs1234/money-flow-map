@@ -34,13 +34,21 @@ export default function DashboardPage({ board }: DashboardPageProps) {
     () => aggregateFlowByCategory(filteredEntries, "income"),
     [filteredEntries],
   );
+  const topIncome = useMemo(
+    () =>
+      Object.entries(incomeTotals)
+        .sort(([, amountA], [, amountB]) => amountB - amountA)
+        .slice(0, 3)
+        .map(([label, value]) => ({ label, value })),
+    [incomeTotals],
+  );
   const expenseTotals = useMemo(
     () => aggregateFlowByCategory(filteredEntries, "expense"),
     [filteredEntries],
   );
   const chartHeight = showSubcategories
-    ? Math.max(660, Math.min(780, 540 + sankeyData.nodes.length * 12))
-    : 620;
+    ? Math.max(820, Math.min(1080, 650 + sankeyData.nodes.length * 10))
+    : Math.max(700, Math.min(900, 580 + sankeyData.nodes.length * 18));
 
   return (
     <div className="space-y-5">
@@ -62,7 +70,7 @@ export default function DashboardPage({ board }: DashboardPageProps) {
         </button>
       </div>
 
-      <DashboardSummary metrics={metrics} countLabel="대분류 수" />
+      <DashboardSummary metrics={metrics} countLabel="입력 건수" topIncome={topIncome} />
 
       <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
         <div className="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:items-center lg:justify-between">
@@ -70,8 +78,8 @@ export default function DashboardPage({ board }: DashboardPageProps) {
             <h2 className="text-lg font-semibold text-ink">자금흐름 Sankey</h2>
             <p className="mt-1 text-sm text-slate-500">
               {showSubcategories
-                ? "소분류 → 대분류 → 총수입/총지출 → 대분류 → 소분류"
-                : "수입 대분류 → 총수입 → 총지출/잔액 → 지출 대분류"}
+                ? "소분류 → 대분류 → 총수익/총지출 → 대분류 → 소분류"
+                : "수입 대분류 → 총수익 → 총지출/순이익 → 지출 대분류"}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -93,8 +101,10 @@ export default function DashboardPage({ board }: DashboardPageProps) {
             </div>
           </div>
         </div>
-        <div className="bg-white px-2 py-3">
-          <SankeyChart data={sankeyData} height={chartHeight} detailed={showSubcategories} />
+        <div className="overflow-x-auto bg-white px-2 py-3">
+          <div className={showSubcategories ? "min-w-[1180px]" : "min-w-[980px]"}>
+            <SankeyChart data={sankeyData} height={chartHeight} detailed={showSubcategories} />
+          </div>
         </div>
       </section>
 

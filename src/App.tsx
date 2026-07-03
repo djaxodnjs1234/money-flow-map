@@ -75,7 +75,7 @@ export default function App() {
               </p>
               <p className="text-sm text-slate-500">
                 {activeBoard
-                  ? `총 ${activeEntries.length.toLocaleString("ko-KR")}개 입력 · 누적 잔액 ${formatCompactKRW(
+                  ? `총 ${activeEntries.length.toLocaleString("ko-KR")}개 입력 · 누적 순이익 ${formatCompactKRW(
                       metrics.netAmount,
                     )}`
                   : `${boards.length.toLocaleString("ko-KR")}개 자산관리 목록`}

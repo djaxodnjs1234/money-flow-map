@@ -35,6 +35,10 @@ export default function SankeyChart({ data, height = 560, detailed = false }: Sa
     () => new Map(data.nodes.map((node) => [node.name, node])),
     [data.nodes],
   );
+  const maxNodeValue = useMemo(
+    () => Math.max(...Object.values(nodeValues), 1),
+    [nodeValues],
+  );
 
   const option = useMemo<SankeyOption>(() => ({
     backgroundColor: "transparent",
@@ -54,73 +58,80 @@ export default function SankeyChart({ data, height = 560, detailed = false }: Sa
         const item = (Array.isArray(params) ? params[0] : params) as TooltipParam;
 
         if (item.dataType === "edge" && item.data?.source && item.data?.target) {
-          return `<strong>${item.data.source} → ${item.data.target}</strong><br/>${formatKRW(item.data.value ?? 0)}`;
+          const source = displayNodeName(
+            item.data.source,
+            nodeMeta.get(item.data.source)?.displayName,
+          );
+          const target = displayNodeName(
+            item.data.target,
+            nodeMeta.get(item.data.target)?.displayName,
+          );
+
+          return `<strong>${source} → ${target}</strong><br/>${formatKRW(item.data.value ?? 0)}`;
         }
 
         const value = nodeValues[item.name ?? ""] ?? 0;
-        return `<strong>${item.name ?? ""}</strong><br/>${formatKRW(value)}`;
+        const meta = item.name ? nodeMeta.get(item.name) : undefined;
+        return `<strong>${displayNodeName(item.name ?? "", meta?.displayName)}</strong><br/>${formatKRW(value)}`;
       },
     },
     series: [
       {
         type: "sankey",
-        top: 24,
-        right: detailed ? 160 : 120,
-        bottom: 24,
-        left: detailed ? 150 : 120,
-        nodeWidth: detailed ? 14 : 18,
-        nodeGap: detailed ? 12 : 20,
+        top: detailed ? 34 : 30,
+        right: detailed ? 240 : 170,
+        bottom: detailed ? 34 : 30,
+        left: detailed ? 220 : 170,
+        nodeWidth: detailed ? 12 : 16,
+        nodeGap: detailed ? 14 : 24,
         nodeAlign: "justify",
-        layoutIterations: 64,
+        layoutIterations: detailed ? 96 : 72,
         draggable: true,
         emphasis: {
           focus: "adjacency",
         },
+        labelLayout: {
+          moveOverlap: "shiftY",
+          hideOverlap: false,
+        },
         label: {
           color: "#172033",
           fontWeight: 700,
-          fontSize: detailed ? 11 : 13,
-          lineHeight: detailed ? 14 : 17,
-          width: detailed ? 112 : 132,
-          overflow: "break",
-          formatter: (params: { name: string }) => {
-            const meta = nodeMeta.get(params.name);
-            const value = nodeValues[params.name] ?? 0;
-
-            if (detailed && meta?.displayName) {
-              return `${meta.displayName} ${formatCompactKRW(value)}`;
-            }
-
-            return `${formatLabel(meta?.displayName ?? params.name)}\n${formatCompactKRW(value)}`;
-          },
+          fontSize: detailed ? 10 : 12,
+          lineHeight: detailed ? 13 : 16,
+          width: detailed ? 150 : 140,
+          overflow: detailed ? "truncate" : "break",
         },
         lineStyle: {
           color: "gradient",
-          opacity: detailed ? 0.3 : 0.38,
-          curveness: 0.54,
+          opacity: detailed ? 0.34 : 0.42,
+          curveness: 0.5,
         },
         itemStyle: {
           borderColor: "rgba(23, 32, 51, 0.28)",
           borderWidth: 0.5,
         },
-        data: data.nodes.map((node) => ({
-          ...node,
-          depth: node.depth,
-          label:
-            detailed && node.displayName
-              ? {
-                  color: "#94a3b8",
-                  fontWeight: 500,
-                  fontSize: 10,
-                  lineHeight: 12,
-                  width: 168,
-                  overflow: "truncate",
-                }
-              : undefined,
-          itemStyle: {
-            color: CATEGORY_COLORS[node.category ?? node.name] ?? "#64748b",
-          },
-        })),
+        data: data.nodes.map((node) => {
+          const value = nodeValues[node.name] ?? 0;
+          const label = buildNodeLabel({
+            detailed,
+            maxNodeValue,
+            nodeName: node.name,
+            displayName: node.displayName,
+            depth: node.depth,
+            totalIncome: nodeValues["총수입"] ?? 0,
+            value,
+          });
+
+          return {
+            ...node,
+            depth: node.depth,
+            label,
+            itemStyle: {
+              color: CATEGORY_COLORS[node.category ?? node.name] ?? "#64748b",
+            },
+          };
+        }),
         links: data.links.map((link) => ({
           ...link,
           lineStyle: {
@@ -132,7 +143,7 @@ export default function SankeyChart({ data, height = 560, detailed = false }: Sa
         })),
       },
     ],
-  }), [data, detailed, nodeMeta, nodeValues]);
+  }), [data, detailed, maxNodeValue, nodeMeta, nodeValues]);
 
   useEffect(() => {
     const element = chartRef.current;
@@ -171,4 +182,141 @@ export default function SankeyChart({ data, height = 560, detailed = false }: Sa
 
 function formatLabel(name: string) {
   return name.length > 12 ? name.replace("/", "/\n").replace(" ", "\n") : name;
+}
+
+function buildNodeLabel({
+  depth,
+  detailed,
+  displayName,
+  maxNodeValue,
+  nodeName,
+  totalIncome,
+  value,
+}: {
+  depth?: number;
+  detailed: boolean;
+  displayName?: string;
+  maxNodeValue: number;
+  nodeName: string;
+  totalIncome: number;
+  value: number;
+}) {
+  const isTotalNode = ["총수입", "총지출", "순이익", "초과지출"].includes(nodeName);
+  const isSubcategory = Boolean(displayName);
+  const isDetailedCategory = detailed && !isTotalNode && !isSubcategory;
+  const share = value / Math.max(maxNodeValue, 1);
+  const fontSize = getNodeFontSize(share, detailed, isTotalNode);
+  const overflow = detailed ? "truncate" : "break";
+  const labelText = getNodeLabelText({
+    detailed,
+    displayName,
+    isTotalNode,
+    nodeName,
+    totalIncome,
+    value,
+  });
+
+  return {
+    color: getNodeLabelColor(share, isTotalNode),
+    fontWeight: isTotalNode || share >= 0.08 ? 700 : 500,
+    fontSize,
+    lineHeight: isTotalNode ? fontSize + 5 : fontSize + 3,
+    width: getNodeLabelWidth(detailed, isTotalNode, share),
+    position: getNodeLabelPosition(detailed, depth, isTotalNode, isSubcategory),
+    overflow: overflow as "truncate" | "break",
+    backgroundColor: isTotalNode
+      ? getTotalLabelBackground(nodeName)
+      : isDetailedCategory
+        ? "rgba(255, 255, 255, 0.72)"
+        : undefined,
+    borderColor: isTotalNode ? getTotalLabelBorder(nodeName) : undefined,
+    borderWidth: isTotalNode ? 1 : 0,
+    borderRadius: isTotalNode ? 6 : isDetailedCategory ? 4 : 0,
+    padding: isTotalNode ? [8, 10] : isDetailedCategory ? [2, 4] : 0,
+    formatter: () => labelText,
+  };
+}
+
+function getNodeLabelText({
+  detailed,
+  displayName,
+  isTotalNode,
+  nodeName,
+  totalIncome,
+  value,
+}: {
+  detailed: boolean;
+  displayName?: string;
+  isTotalNode: boolean;
+  nodeName: string;
+  totalIncome: number;
+  value: number;
+}) {
+  const name = displayNodeName(nodeName, displayName);
+
+  if (nodeName === "순이익") {
+    const profitRate = totalIncome > 0 ? Math.round((value / totalIncome) * 100) : 0;
+    return `순이익\n${formatCompactKRW(value)}\n총수익의 ${profitRate}%`;
+  }
+
+  if (isTotalNode) {
+    return `${name}\n${formatCompactKRW(value)}`;
+  }
+
+  if (detailed) {
+    return `${name} ${formatCompactKRW(value)}`;
+  }
+
+  return `${formatLabel(name)}\n${formatCompactKRW(value)}`;
+}
+
+function displayNodeName(nodeName: string, displayName?: string) {
+  if (nodeName === "총수입") return "총수익";
+  if (nodeName === "잔액") return "순이익";
+  return displayName ?? nodeName;
+}
+
+function getNodeFontSize(share: number, detailed: boolean, isTotalNode: boolean) {
+  if (isTotalNode) return detailed ? 14 : 16;
+  if (share >= 0.25) return detailed ? 14 : 15;
+  if (share >= 0.08) return detailed ? 12 : 13;
+  if (share >= 0.025) return detailed ? 10 : 11;
+  return detailed ? 8 : 9;
+}
+
+function getNodeLabelColor(share: number, isTotalNode: boolean) {
+  if (isTotalNode) return "#172033";
+  if (share >= 0.08) return "#243044";
+  if (share >= 0.025) return "#64748b";
+  return "#94a3b8";
+}
+
+function getNodeLabelWidth(detailed: boolean, isTotalNode: boolean, share: number) {
+  if (isTotalNode) return detailed ? 132 : 122;
+  if (detailed) return share >= 0.08 ? 160 : 184;
+  return share >= 0.08 ? 132 : 118;
+}
+
+function getNodeLabelPosition(
+  detailed: boolean,
+  depth: number | undefined,
+  isTotalNode: boolean,
+  isSubcategory: boolean,
+): "left" | undefined {
+  if (!detailed || isTotalNode || isSubcategory) return undefined;
+  return depth !== undefined && depth >= 3 ? "left" : undefined;
+}
+
+function getTotalLabelBackground(nodeName: string) {
+  if (nodeName === "순이익") return "rgba(153, 246, 228, 0.96)";
+  if (nodeName === "총지출") return "rgba(219, 234, 254, 0.96)";
+  if (nodeName === "초과지출") return "rgba(254, 226, 226, 0.96)";
+  return "rgba(220, 252, 231, 0.96)";
+}
+
+function getTotalLabelBorder(nodeName: string) {
+  if (nodeName === "순이익") return "rgba(15, 159, 143, 0.35)";
+  if (nodeName === "총지출") return "rgba(47, 125, 225, 0.3)";
+  if (nodeName === "초과지출") return "rgba(220, 95, 69, 0.32)";
+  return "rgba(18, 51, 13, 0.22)";
 }

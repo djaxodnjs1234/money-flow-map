@@ -46,8 +46,8 @@ export function transformToSankeyData(transactions: Transaction[]): SankeyData {
 
   if (summary.netAmount > 0) {
     nodes.add("총수입");
-    nodes.add("잔액");
-    links.push({ source: "총수입", target: "잔액", value: summary.netAmount });
+    nodes.add("순이익");
+    links.push({ source: "총수입", target: "순이익", value: summary.netAmount });
   }
 
   if (summary.netAmount < 0) {

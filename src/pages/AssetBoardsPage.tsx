@@ -415,7 +415,7 @@ export default function AssetBoardsPage({ onOpenBoard }: AssetBoardsPageProps) {
             <div className="mt-5 grid grid-cols-3 gap-2">
               <Metric label="입력" value={`${entryCount.toLocaleString("ko-KR")}개`} />
               <Metric label="수입" value={formatCompactKRW(metrics.totalIncome)} />
-              <Metric label="잔액" value={formatCompactKRW(metrics.netAmount)} />
+              <Metric label="순이익" value={formatCompactKRW(metrics.netAmount)} />
             </div>
 
             <div className="mt-4 grid gap-2 md:grid-cols-3">

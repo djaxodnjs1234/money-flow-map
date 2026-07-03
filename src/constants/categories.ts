@@ -56,7 +56,7 @@ export const CATEGORY_COLORS: Record<string, string> = {
   기타수입: "#64748b",
   총수입: "#12330d",
   총지출: "#2f7de1",
-  잔액: "#0f9f8f",
+  순이익: "#0f9f8f",
   초과지출: "#dc5f45",
   식비: "#d97706",
   "카페/간식": "#b45309",

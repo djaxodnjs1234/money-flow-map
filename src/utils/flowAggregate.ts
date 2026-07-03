@@ -137,8 +137,8 @@ export function transformFlowToSankeyData(
   }
 
   if (metrics.netAmount > 0) {
-    addNode({ name: "잔액", depth: terminalDepth, category: "잔액" });
-    links.push({ source: "총수입", target: "잔액", value: metrics.netAmount });
+    addNode({ name: "순이익", depth: terminalDepth, category: "순이익" });
+    links.push({ source: "총수입", target: "순이익", value: metrics.netAmount });
   }
 
   if (metrics.netAmount < 0) {
