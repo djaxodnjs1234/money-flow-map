@@ -1,5 +1,6 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { chromium } from "playwright";
+import JSZip from "jszip";
 
 const baseUrl = process.env.APP_URL ?? "http://127.0.0.1:5173/";
 const outDir = "artifacts";
@@ -57,9 +58,25 @@ if (!canvasBox || canvasBox.width < 600 || canvasBox.height < 300) {
 if (
   !dashboardText.includes("순이익") ||
   !dashboardText.includes("수입 TOP 3") ||
-  !dashboardText.includes("지출 TOP 3")
+  !dashboardText.includes("지출 TOP 3") ||
+  !dashboardText.includes("이미지 ZIP")
 ) {
-  failures.push("dashboard did not render the profit and top 3 summary area");
+  failures.push("dashboard did not render the profit, top 3, and diagram export area");
+}
+
+const [zipDownload] = await Promise.all([
+  page.waitForEvent("download"),
+  page.getByRole("button", { name: "이미지 ZIP" }).click(),
+]);
+const zipPath = await zipDownload.path();
+if (!zipPath) {
+  failures.push("diagram zip download did not produce a file");
+} else {
+  const zip = await JSZip.loadAsync(await readFile(zipPath));
+  const pngFiles = Object.keys(zip.files).filter((name) => name.endsWith(".png"));
+  if (pngFiles.length !== 2) {
+    failures.push(`diagram zip should contain 2 png files, found ${pngFiles.length}`);
+  }
 }
 
 await page.screenshot({ path: `${outDir}/dashboard.png`, fullPage: true });

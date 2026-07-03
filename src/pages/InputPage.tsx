@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { CalendarRange, Edit3, Plus, RotateCcw, Save, Trash2, X } from "lucide-react";
 import {
   CATEGORY_LABELS,
@@ -20,6 +20,7 @@ interface InputPageProps {
 export default function InputPage({ board }: InputPageProps) {
   const { entries, upsertEntry, deleteEntry, resetToSample, clearAll } = useFlowEntriesStore();
   const [editingEntry, setEditingEntry] = useState<FlowEntry | null>(null);
+  const formAnchorRef = useRef<HTMLDivElement>(null);
 
   const visibleEntries = useMemo(
     () => filterFlowEntriesByPeriod(entries, board.period),
@@ -29,6 +30,13 @@ export default function InputPage({ board }: InputPageProps) {
   function handleSubmit(entry: FlowEntry) {
     upsertEntry(entry);
     setEditingEntry(null);
+  }
+
+  function startEdit(entry: FlowEntry) {
+    setEditingEntry(entry);
+    window.requestAnimationFrame(() => {
+      formAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 
   return (
@@ -69,13 +77,15 @@ export default function InputPage({ board }: InputPageProps) {
         </span>
       </section>
 
-      <FlowEntryForm
-        period={board.period}
-        entries={entries}
-        editingEntry={editingEntry}
-        onSubmit={handleSubmit}
-        onCancelEdit={() => setEditingEntry(null)}
-      />
+      <div ref={formAnchorRef}>
+        <FlowEntryForm
+          period={board.period}
+          entries={entries}
+          editingEntry={editingEntry}
+          onSubmit={handleSubmit}
+          onCancelEdit={() => setEditingEntry(null)}
+        />
+      </div>
 
       <section className="rounded-lg border border-slate-200 bg-white shadow-soft">
         <div className="flex flex-col gap-2 border-b border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between">
@@ -138,7 +148,7 @@ export default function InputPage({ board }: InputPageProps) {
                     <button
                       type="button"
                       className="mr-1 inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-500 transition hover:bg-white hover:text-river"
-                      onClick={() => setEditingEntry(entry)}
+                      onClick={() => startEdit(entry)}
                       aria-label={`${entry.category} 수정`}
                     >
                       <Edit3 className="h-4 w-4" aria-hidden="true" />

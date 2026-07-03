@@ -1,4 +1,4 @@
-import { useMemo, useState, type ChangeEvent, type FormEvent } from "react";
+import { useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -69,6 +69,7 @@ export default function AssetBoardsPage({ onOpenBoard }: AssetBoardsPageProps) {
   const [form, setForm] = useState<BoardFormState>(EMPTY_FORM);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState<Notice>(null);
+  const formAnchorRef = useRef<HTMLDivElement>(null);
 
   const boardRows = useMemo(
     () =>
@@ -90,6 +91,7 @@ export default function AssetBoardsPage({ onOpenBoard }: AssetBoardsPageProps) {
     setForm(EMPTY_FORM);
     setError("");
     setIsFormOpen(true);
+    scrollToForm();
   }
 
   function openEditForm(board: AssetBoard) {
@@ -104,6 +106,13 @@ export default function AssetBoardsPage({ onOpenBoard }: AssetBoardsPageProps) {
     });
     setError("");
     setIsFormOpen(true);
+    scrollToForm();
+  }
+
+  function scrollToForm() {
+    window.requestAnimationFrame(() => {
+      formAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 
   function closeForm() {
@@ -242,127 +251,133 @@ export default function AssetBoardsPage({ onOpenBoard }: AssetBoardsPageProps) {
         </div>
       )}
 
-      {isFormOpen && (
-        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-ink">
-              {editingBoard ? "자산관리 목록 수정" : "새 자산관리 목록"}
-            </h2>
-            <button
-              type="button"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-500 transition hover:bg-slate-50"
-              onClick={closeForm}
-              aria-label="닫기"
-            >
-              <X className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </div>
-
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="text-sm font-medium text-slate-600">
-                제목
-                <input
-                  className="mt-1 h-10 w-full rounded-md border border-slate-200 px-3 text-sm text-ink outline-none transition focus:border-river focus:ring-2 focus:ring-river/20"
-                  value={form.title}
-                  onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
-                  placeholder="예: 홍길동의 자산관리"
-                />
-              </label>
-
-              <label className="text-sm font-medium text-slate-600">
-                이름
-                <input
-                  className="mt-1 h-10 w-full rounded-md border border-slate-200 px-3 text-sm text-ink outline-none transition focus:border-river focus:ring-2 focus:ring-river/20"
-                  value={form.ownerName}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, ownerName: event.target.value }))
-                  }
-                  placeholder="예: 홍길동"
-                />
-              </label>
+      <div ref={formAnchorRef}>
+        {isFormOpen && (
+          <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold text-ink">
+                {editingBoard ? "자산관리 목록 수정" : "새 자산관리 목록"}
+              </h2>
+              <button
+                type="button"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-500 transition hover:bg-slate-50"
+                onClick={closeForm}
+                aria-label="닫기"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-3">
-              <label className="text-sm font-medium text-slate-600">
-                기간 단위
-                <select
-                  className="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-ink outline-none transition focus:border-river focus:ring-2 focus:ring-river/20"
-                  value={form.periodType}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      periodType: event.target.value as FlowPeriodType,
-                    }))
-                  }
-                >
-                  <option value="quarter">분기별</option>
-                  <option value="year">연도별</option>
-                </select>
-              </label>
-
-              <label className="text-sm font-medium text-slate-600">
-                연도
-                <input
-                  className="mt-1 h-10 w-full rounded-md border border-slate-200 px-3 text-sm text-ink outline-none transition focus:border-river focus:ring-2 focus:ring-river/20"
-                  type="number"
-                  inputMode="numeric"
-                  min={1900}
-                  max={2200}
-                  value={form.year}
-                  onChange={(event) => setForm((current) => ({ ...current, year: event.target.value }))}
-                  placeholder="예: 2025"
-                />
-              </label>
-
-              {form.periodType === "quarter" && (
+            <form className="space-y-4" onSubmit={handleSubmit}>
+              <div className="grid gap-3 md:grid-cols-2">
                 <label className="text-sm font-medium text-slate-600">
-                  분기
+                  제목
+                  <input
+                    className="mt-1 h-10 w-full rounded-md border border-slate-200 px-3 text-sm text-ink outline-none transition focus:border-river focus:ring-2 focus:ring-river/20"
+                    value={form.title}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, title: event.target.value }))
+                    }
+                    placeholder="예: 홍길동의 자산관리"
+                  />
+                </label>
+
+                <label className="text-sm font-medium text-slate-600">
+                  이름
+                  <input
+                    className="mt-1 h-10 w-full rounded-md border border-slate-200 px-3 text-sm text-ink outline-none transition focus:border-river focus:ring-2 focus:ring-river/20"
+                    value={form.ownerName}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, ownerName: event.target.value }))
+                    }
+                    placeholder="예: 홍길동"
+                  />
+                </label>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-3">
+                <label className="text-sm font-medium text-slate-600">
+                  기간 단위
                   <select
                     className="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-ink outline-none transition focus:border-river focus:ring-2 focus:ring-river/20"
-                    value={form.quarter}
+                    value={form.periodType}
                     onChange={(event) =>
-                      setForm((current) => ({ ...current, quarter: Number(event.target.value) }))
+                      setForm((current) => ({
+                        ...current,
+                        periodType: event.target.value as FlowPeriodType,
+                      }))
                     }
                   >
-                    {[1, 2, 3, 4].map((quarter) => (
-                      <option key={quarter} value={quarter}>
-                        {quarter}분기
-                      </option>
-                    ))}
+                    <option value="quarter">분기별</option>
+                    <option value="year">연도별</option>
                   </select>
                 </label>
-              )}
-            </div>
 
-            <label className="block text-sm font-medium text-slate-600">
-              설명
-              <textarea
-                className="mt-1 min-h-20 w-full resize-y rounded-md border border-slate-200 px-3 py-2 text-sm text-ink outline-none transition focus:border-river focus:ring-2 focus:ring-river/20"
-                value={form.description}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, description: event.target.value }))
-                }
-                placeholder="선택 입력"
-              />
-            </label>
+                <label className="text-sm font-medium text-slate-600">
+                  연도
+                  <input
+                    className="mt-1 h-10 w-full rounded-md border border-slate-200 px-3 text-sm text-ink outline-none transition focus:border-river focus:ring-2 focus:ring-river/20"
+                    type="number"
+                    inputMode="numeric"
+                    min={1900}
+                    max={2200}
+                    value={form.year}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, year: event.target.value }))
+                    }
+                    placeholder="예: 2025"
+                  />
+                </label>
 
-            {error && (
-              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {error}
+                {form.periodType === "quarter" && (
+                  <label className="text-sm font-medium text-slate-600">
+                    분기
+                    <select
+                      className="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-ink outline-none transition focus:border-river focus:ring-2 focus:ring-river/20"
+                      value={form.quarter}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, quarter: Number(event.target.value) }))
+                      }
+                    >
+                      {[1, 2, 3, 4].map((quarter) => (
+                        <option key={quarter} value={quarter}>
+                          {quarter}분기
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
               </div>
-            )}
 
-            <button
-              type="submit"
-              className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
-            >
-              <Save className="h-4 w-4" aria-hidden="true" />
-              {editingBoard ? "수정 저장" : "추가 저장"}
-            </button>
-          </form>
-        </section>
-      )}
+              <label className="block text-sm font-medium text-slate-600">
+                설명
+                <textarea
+                  className="mt-1 min-h-20 w-full resize-y rounded-md border border-slate-200 px-3 py-2 text-sm text-ink outline-none transition focus:border-river focus:ring-2 focus:ring-river/20"
+                  value={form.description}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, description: event.target.value }))
+                  }
+                  placeholder="선택 입력"
+                />
+              </label>
+
+              {error && (
+                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
+              >
+                <Save className="h-4 w-4" aria-hidden="true" />
+                {editingBoard ? "수정 저장" : "추가 저장"}
+              </button>
+            </form>
+          </section>
+        )}
+      </div>
 
       <section className="grid gap-3 xl:grid-cols-2">
         {boardRows.map(({ board, entryCount, metrics }) => (

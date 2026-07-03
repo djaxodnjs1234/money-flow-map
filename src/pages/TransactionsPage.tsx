@@ -1,5 +1,5 @@
 import { Download, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import TransactionForm from "../components/TransactionForm";
 import TransactionTable from "../components/TransactionTable";
 import { useTransactionsStore } from "../store/transactionsStore";
@@ -9,10 +9,18 @@ import { toCsvCell } from "../utils/format";
 export default function TransactionsPage() {
   const { transactions, upsertTransaction, deleteTransaction, clearAll } = useTransactionsStore();
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const formAnchorRef = useRef<HTMLDivElement>(null);
 
   function handleSubmit(transaction: Transaction) {
     upsertTransaction(transaction);
     setEditingTransaction(null);
+  }
+
+  function startEdit(transaction: Transaction) {
+    setEditingTransaction(transaction);
+    window.requestAnimationFrame(() => {
+      formAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 
   function exportCsv() {
@@ -62,15 +70,17 @@ export default function TransactionsPage() {
         </div>
       </div>
 
-      <TransactionForm
-        editingTransaction={editingTransaction}
-        onSubmit={handleSubmit}
-        onCancelEdit={() => setEditingTransaction(null)}
-      />
+      <div ref={formAnchorRef}>
+        <TransactionForm
+          editingTransaction={editingTransaction}
+          onSubmit={handleSubmit}
+          onCancelEdit={() => setEditingTransaction(null)}
+        />
+      </div>
 
       <TransactionTable
         transactions={transactions}
-        onEdit={setEditingTransaction}
+        onEdit={startEdit}
         onDelete={deleteTransaction}
       />
     </div>

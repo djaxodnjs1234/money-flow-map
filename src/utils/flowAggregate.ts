@@ -89,12 +89,13 @@ export function transformFlowToSankeyData(
   const orderedExpenseCategories = sortTotalsDescending(expenseTotals);
   const nodes = new Map<string, SankeyNode>();
   const links: SankeyLink[] = [];
-  const hasDetailedIncome = showSubcategories && orderedIncomeSources.length > 0;
+  const hasDetailedIncome = orderedIncomeSources.length > 0;
   const incomeCategoryDepth = hasDetailedIncome ? 1 : 0;
   const totalIncomeDepth = hasDetailedIncome ? 2 : 1;
   const totalExpenseDepth = hasDetailedIncome ? 3 : 2;
-  const expenseCategoryDepth = showSubcategories ? (hasDetailedIncome ? 4 : 3) : 3;
-  const terminalDepth = showSubcategories ? (hasDetailedIncome ? 5 : 4) : 3;
+  const profitDepth = totalExpenseDepth;
+  const expenseCategoryDepth = totalExpenseDepth + 1;
+  const expenseSubcategoryDepth = showSubcategories ? expenseCategoryDepth + 1 : expenseCategoryDepth;
 
   const addNode = (node: SankeyNode) => {
     if (!nodes.has(node.name)) {
@@ -110,18 +111,16 @@ export function transformFlowToSankeyData(
     });
     addNode({ name: "총수입", depth: totalIncomeDepth, category: "총수입" });
 
-    if (showSubcategories) {
-      orderedIncomeSources.forEach(([source, value]) => {
-        const nodeName = getSubcategoryNodeName(INCOME_PARENT_CATEGORY, source);
-        addNode({
-          name: nodeName,
-          displayName: source,
-          depth: 0,
-          category: source,
-        });
-        links.push({ source: nodeName, target: INCOME_PARENT_CATEGORY, value });
+    orderedIncomeSources.forEach(([source, value]) => {
+      const nodeName = getSubcategoryNodeName(INCOME_PARENT_CATEGORY, source);
+      addNode({
+        name: nodeName,
+        displayName: source,
+        depth: 0,
+        category: source,
       });
-    }
+      links.push({ source: nodeName, target: INCOME_PARENT_CATEGORY, value });
+    });
 
     links.push({
       source: INCOME_PARENT_CATEGORY,
@@ -141,7 +140,7 @@ export function transformFlowToSankeyData(
   }
 
   if (metrics.netAmount > 0) {
-    addNode({ name: "순이익", depth: terminalDepth, category: "순이익" });
+    addNode({ name: "순이익", depth: profitDepth, category: "순이익" });
     links.push({ source: "총수입", target: "순이익", value: metrics.netAmount });
   }
 
@@ -164,7 +163,7 @@ export function transformFlowToSankeyData(
         addNode({
           name: nodeName,
           displayName: subcategory,
-          depth: terminalDepth,
+          depth: expenseSubcategoryDepth,
           category,
         });
         links.push({ source: category, target: nodeName, value });

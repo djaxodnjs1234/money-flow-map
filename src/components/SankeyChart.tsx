@@ -5,16 +5,22 @@ import {
   type TooltipComponentOption,
 } from "echarts/components";
 import * as echarts from "echarts/core";
+import type { ComposeOption, EChartsType } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
-import type { ComposeOption } from "echarts/core";
+import { CATEGORY_COLORS } from "../constants/categories";
 import type { SankeyData } from "../utils/sankeyTransform";
 import { getSankeyNodeValues } from "../utils/sankeyTransform";
 import { formatCompactKRW, formatKRW } from "../utils/format";
-import { CATEGORY_COLORS } from "../constants/categories";
 
 echarts.use([EChartsSankeyChart, TooltipComponent, CanvasRenderer]);
 
-type SankeyOption = ComposeOption<SankeySeriesOption | TooltipComponentOption>;
+export type SankeyOption = ComposeOption<SankeySeriesOption | TooltipComponentOption>;
+export type SankeyNodePosition = {
+  localX?: number;
+  localY?: number;
+};
+export type SankeyLayoutPositions = Record<string, SankeyNodePosition>;
+
 type TooltipParam = {
   dataType?: string;
   data?: { source?: string; target?: string; value?: number } | null;
@@ -25,23 +31,85 @@ interface SankeyChartProps {
   data: SankeyData;
   height?: number;
   detailed?: boolean;
+  layoutPositions?: SankeyLayoutPositions;
+  onLayoutChange?: (positions: SankeyLayoutPositions) => void;
 }
 
-export default function SankeyChart({ data, height = 560, detailed = false }: SankeyChartProps) {
+interface CreateSankeyOptionInput {
+  backgroundColor?: string;
+  data: SankeyData;
+  detailed: boolean;
+  layoutPositions?: SankeyLayoutPositions;
+}
+
+export default function SankeyChart({
+  data,
+  detailed = false,
+  height = 560,
+  layoutPositions,
+  onLayoutChange,
+}: SankeyChartProps) {
   const chartRef = useRef<HTMLDivElement>(null);
-  const nodeValues = useMemo(() => getSankeyNodeValues(data), [data]);
   const hasData = data.links.length > 0;
-  const nodeMeta = useMemo(
-    () => new Map(data.nodes.map((node) => [node.name, node])),
-    [data.nodes],
-  );
-  const maxNodeValue = useMemo(
-    () => Math.max(...Object.values(nodeValues), 1),
-    [nodeValues],
+  const option = useMemo(
+    () => createSankeyOption({ data, detailed, layoutPositions }),
+    [data, detailed, layoutPositions],
   );
 
-  const option = useMemo<SankeyOption>(() => ({
-    backgroundColor: "transparent",
+  useEffect(() => {
+    const element = chartRef.current;
+    if (!element) return;
+
+    if (!hasData) {
+      echarts.getInstanceByDom(element)?.dispose();
+      return;
+    }
+
+    const chart = echarts.getInstanceByDom(element) ?? echarts.init(element);
+    chart.setOption(option, { notMerge: true, lazyUpdate: true });
+
+    const handleDragNode = () => {
+      if (!onLayoutChange) return;
+      onLayoutChange(extractLayoutPositions(chart));
+    };
+    chart.on("dragnode", handleDragNode);
+
+    const resizeObserver = new ResizeObserver(() => chart.resize());
+    resizeObserver.observe(element);
+
+    return () => {
+      chart.off("dragnode", handleDragNode);
+      resizeObserver.disconnect();
+      chart.dispose();
+    };
+  }, [hasData, onLayoutChange, option]);
+
+  if (!hasData) {
+    return (
+      <div
+        className="flex items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-center text-slate-500"
+        style={{ minHeight: height }}
+      >
+        선택한 기간에 표시할 흐름 데이터가 없습니다.
+      </div>
+    );
+  }
+
+  return <div ref={chartRef} style={{ height, minHeight: height, width: "100%" }} />;
+}
+
+export function createSankeyOption({
+  backgroundColor = "transparent",
+  data,
+  detailed,
+  layoutPositions,
+}: CreateSankeyOptionInput): SankeyOption {
+  const nodeValues = getSankeyNodeValues(data);
+  const nodeMeta = new Map(data.nodes.map((node) => [node.name, node]));
+  const maxNodeValue = Math.max(...Object.values(nodeValues), 1);
+
+  return {
+    backgroundColor,
     animation: false,
     tooltip: {
       trigger: "item",
@@ -114,19 +182,23 @@ export default function SankeyChart({ data, height = 560, detailed = false }: Sa
         data: data.nodes.map((node) => {
           const value = nodeValues[node.name] ?? 0;
           const label = buildNodeLabel({
+            depth: node.depth,
             detailed,
+            displayName: node.displayName,
             maxNodeValue,
             nodeName: node.name,
-            displayName: node.displayName,
-            depth: node.depth,
             totalIncome: nodeValues["총수입"] ?? 0,
             value,
           });
+          const defaultPosition = getDefaultNodePosition(node.name, detailed);
+          const savedPosition = layoutPositions?.[node.name];
 
           return {
             ...node,
             depth: node.depth,
             label,
+            localX: savedPosition?.localX ?? defaultPosition.localX,
+            localY: savedPosition?.localY ?? defaultPosition.localY,
             itemStyle: {
               color: CATEGORY_COLORS[node.category ?? node.name] ?? "#64748b",
             },
@@ -143,41 +215,27 @@ export default function SankeyChart({ data, height = 560, detailed = false }: Sa
         })),
       },
     ],
-  }), [data, detailed, maxNodeValue, nodeMeta, nodeValues]);
+  };
+}
 
-  useEffect(() => {
-    const element = chartRef.current;
-    if (!element) return;
+export function extractLayoutPositions(chart: EChartsType): SankeyLayoutPositions {
+  const option = chart.getOption() as {
+    series?: Array<{
+      data?: Array<{ name?: string; localX?: number; localY?: number }>;
+    }>;
+  };
+  const nodes = option.series?.[0]?.data ?? [];
 
-    if (!hasData) {
-      echarts.getInstanceByDom(element)?.dispose();
-      return;
-    }
+  return nodes.reduce<SankeyLayoutPositions>((acc, node) => {
+    if (!node.name) return acc;
+    if (node.localX === undefined && node.localY === undefined) return acc;
 
-    const chart = echarts.getInstanceByDom(element) ?? echarts.init(element);
-    chart.setOption(option, { notMerge: true, lazyUpdate: true });
-
-    const resizeObserver = new ResizeObserver(() => chart.resize());
-    resizeObserver.observe(element);
-
-    return () => {
-      resizeObserver.disconnect();
-      chart.dispose();
+    acc[node.name] = {
+      localX: node.localX,
+      localY: node.localY,
     };
-  }, [hasData, option]);
-
-  if (!hasData) {
-    return (
-      <div
-        className="flex items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-center text-slate-500"
-        style={{ minHeight: height }}
-      >
-        선택한 기간에 표시할 흐름 데이터가 없습니다.
-      </div>
-    );
-  }
-
-  return <div ref={chartRef} style={{ height, minHeight: height, width: "100%" }} />;
+    return acc;
+  }, {});
 }
 
 function formatLabel(name: string) {
@@ -305,6 +363,13 @@ function getNodeLabelPosition(
 ): "right" | undefined {
   if (!detailed || isTotalNode || isSubcategory) return undefined;
   return depth !== undefined && depth >= 3 ? "right" : undefined;
+}
+
+function getDefaultNodePosition(nodeName: string, detailed: boolean): SankeyNodePosition {
+  if (nodeName === "순이익") return { localY: detailed ? 0.08 : 0.08 };
+  if (nodeName === "총지출") return { localY: detailed ? 0.56 : 0.55 };
+  if (nodeName === "초과지출") return { localY: 0.08 };
+  return {};
 }
 
 function getTotalLabelBackground(nodeName: string) {
