@@ -79,8 +79,8 @@ export default function DashboardPage({ board }: DashboardPageProps) {
   const basicLayout = boardLayouts?.basic ?? EMPTY_LAYOUT;
   const detailedLayout = useMemo(
     () => ({
-      ...basicLayout,
       ...(boardLayouts?.detailed ?? EMPTY_LAYOUT),
+      ...basicLayout,
     }),
     [basicLayout, boardLayouts?.detailed],
   );

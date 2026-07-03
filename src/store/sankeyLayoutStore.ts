@@ -31,7 +31,10 @@ export const useSankeyLayoutStore = create<SankeyLayoutState>()(
     }),
     {
       name: "money-flow-sankey-layouts",
-      version: 1,
+      version: 2,
+      migrate: () => ({
+        layoutsByBoardId: {},
+      }),
     },
   ),
 );

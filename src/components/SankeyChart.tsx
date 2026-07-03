@@ -228,8 +228,8 @@ export function createSankeyOption({
         },
         lineStyle: {
           color: "gradient",
-          opacity: detailed ? 0.34 : 0.42,
-          curveness: 0.5,
+          opacity: detailed ? 0.42 : 0.46,
+          curveness: 0.46,
         },
         itemStyle: {
           borderColor: "rgba(23, 32, 51, 0.28)",
@@ -347,7 +347,7 @@ function buildNodeLabel({
     borderColor: isTotalNode ? getTotalLabelBorder(nodeName) : undefined,
     borderWidth: isTotalNode ? 1 : 0,
     borderRadius: isTotalNode ? 6 : isDetailedCategory ? 4 : 0,
-    padding: isTotalNode ? [8, 10] : isDetailedCategory ? [2, 4] : 0,
+    padding: isTotalNode ? [6, 8] : isDetailedCategory ? [2, 4] : 0,
     formatter: () => labelText,
   };
 }
@@ -435,36 +435,22 @@ function getDefaultLayoutPositions(
   const positions: SankeyLayoutPositions = {};
   const nodeMeta = new Map(data.nodes.map((node) => [node.name, node]));
   const x = detailed
-    ? {
-        incomeSource: 0.02,
-        incomeParent: 0.18,
-        totalIncome: 0.31,
-        split: 0.44,
-        expenseCategory: 0.62,
-        expenseSubcategory: 0.88,
-      }
-    : {
-        incomeSource: 0.02,
-        incomeParent: 0.22,
-        totalIncome: 0.38,
-        split: 0.54,
-        expenseCategory: 0.76,
-        expenseSubcategory: 0.9,
-      };
+    ? getHorizontalLayout(true)
+    : getHorizontalLayout(false);
   const incomeSourceLinks = data.links.filter((link) => link.target === "수입");
   const expenseCategoryLinks = data.links.filter((link) => link.source === "총지출");
   const expenseCategories = expenseCategoryLinks
     .map((link) => link.target)
     .filter((name) => nodeMeta.has(name));
-  const categoryYs = distributePositions(expenseCategories.length, 0.1, 0.78);
+  const categoryYs = distributePositions(expenseCategories.length, 0.08, 0.86);
 
-  setPosition(positions, nodeMeta, "수입", x.incomeParent, 0.08);
-  setPosition(positions, nodeMeta, "총수입", x.totalIncome, 0.08);
-  setPosition(positions, nodeMeta, "순이익", x.split, detailed ? 0.04 : 0.06);
-  setPosition(positions, nodeMeta, "총지출", x.split, detailed ? 0.58 : 0.56);
+  setPosition(positions, nodeMeta, "수입", x.incomeParent, 0.1);
+  setPosition(positions, nodeMeta, "총수입", x.totalIncome, 0.06);
+  setPosition(positions, nodeMeta, "순이익", x.split, 0.02);
+  setPosition(positions, nodeMeta, "총지출", x.split, 0.58);
   setPosition(positions, nodeMeta, "초과지출", x.totalIncome, 0.04);
 
-  distributePositions(incomeSourceLinks.length, 0.12, 0.82).forEach((localY, index) => {
+  distributePositions(incomeSourceLinks.length, 0.08, 0.82).forEach((localY, index) => {
     setPosition(positions, nodeMeta, incomeSourceLinks[index].source, x.incomeSource, localY);
   });
 
@@ -476,23 +462,22 @@ function getDefaultLayoutPositions(
     const categoryAnchors = expenseCategories
       .map((category, index) => ({
         category,
-        localY: clamp(savedPositions?.[category]?.localY ?? categoryYs[index], 0.04, 0.9),
-      }))
-      .sort((a, b) => a.localY - b.localY);
+        localY: clamp(savedPositions?.[category]?.localY ?? categoryYs[index], 0.04, 0.92),
+      }));
 
     categoryAnchors.forEach(({ category, localY }, index) => {
       const previousY = categoryAnchors[index - 1]?.localY;
       const nextY = categoryAnchors[index + 1]?.localY;
-      const bandTop = previousY === undefined ? 0.03 : (previousY + localY) / 2;
-      const bandBottom = nextY === undefined ? 0.95 : (localY + nextY) / 2;
+      const bandTop = previousY === undefined ? 0.02 : (previousY + localY) / 2;
+      const bandBottom = nextY === undefined ? 0.96 : (localY + nextY) / 2;
       const subcategoryLinks = data.links.filter((link) => link.source === category);
       const subcategoryYs =
         subcategoryLinks.length === 1
           ? [localY]
           : distributePositions(
               subcategoryLinks.length,
-              Math.min(localY, bandTop + 0.02),
-              Math.max(localY, bandBottom - 0.02),
+              bandTop + 0.01,
+              bandBottom - 0.01,
             );
 
       subcategoryLinks.forEach((link, subcategoryIndex) => {
@@ -508,6 +493,17 @@ function getDefaultLayoutPositions(
   }
 
   return positions;
+}
+
+function getHorizontalLayout(detailed: boolean) {
+  return {
+    incomeSource: 0.02,
+    incomeParent: 0.18,
+    totalIncome: 0.34,
+    split: 0.54,
+    expenseCategory: 0.74,
+    expenseSubcategory: detailed ? 0.92 : 0.92,
+  };
 }
 
 function setPosition(
