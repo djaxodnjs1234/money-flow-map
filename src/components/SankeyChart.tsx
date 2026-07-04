@@ -224,7 +224,7 @@ export function createSankeyOption({
           },
         };
       }),
-      links: orderSankeyLinks(data.links).map((link) => ({
+      links: orderSankeyLinks(data.links, nodeValues).map((link) => ({
         ...link,
         lineStyle: {
           color:
@@ -641,6 +641,7 @@ function getDefaultLayoutPositions(
 ): SankeyLayoutPositions {
   const positions: SankeyLayoutPositions = {};
   const nodeMeta = new Map(data.nodes.map((node) => [node.name, node]));
+  const nodeValues = getSankeyNodeValues(data);
   const x = detailed
     ? getHorizontalLayout(true)
     : getHorizontalLayout(false);
@@ -666,10 +667,13 @@ function getDefaultLayoutPositions(
       start: 0.03,
     },
   );
+  const profitValue = nodeValues["순이익"] ?? 0;
+  const expenseValue = nodeValues["총지출"] ?? 0;
+  const profitIsUpper = profitValue >= expenseValue;
 
   setPosition(positions, nodeMeta, "총수입", x.totalIncome, 0.04);
-  setPosition(positions, nodeMeta, "순이익", x.split, 0.04);
-  setPosition(positions, nodeMeta, "총지출", x.split, 0.58);
+  setPosition(positions, nodeMeta, "순이익", x.split, profitIsUpper ? 0.04 : 0.58);
+  setPosition(positions, nodeMeta, "총지출", x.split, profitIsUpper ? 0.58 : 0.04);
   setPosition(positions, nodeMeta, "초과지출", x.totalIncome, 0.04);
 
   incomeSourceLinks.forEach((link) => {
@@ -813,18 +817,26 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-function orderSankeyLinks(links: SankeyData["links"]) {
+function orderSankeyLinks(
+  links: SankeyData["links"],
+  nodeValues: Record<string, number>,
+) {
   return [...links].sort((a, b) => {
-    if (a.source !== b.source || a.source !== "총수입") return 0;
+    if (a.source !== b.source) return 0;
 
-    return getTotalIncomeTargetRank(a.target) - getTotalIncomeTargetRank(b.target);
+    if (a.source === "총수입") {
+      const valueA = nodeValues[a.target] ?? a.value;
+      const valueB = nodeValues[b.target] ?? b.value;
+
+      return valueB - valueA;
+    }
+
+    if (a.source === "총지출") {
+      return b.value - a.value;
+    }
+
+    return 0;
   });
-}
-
-function getTotalIncomeTargetRank(target: string) {
-  if (target === "순이익") return 0;
-  if (target === "총지출") return 1;
-  return 2;
 }
 
 function getTotalLabelBackground(nodeName: string) {

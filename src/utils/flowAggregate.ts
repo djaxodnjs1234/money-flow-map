@@ -89,6 +89,7 @@ export function transformFlowToSankeyData(
   const orderedExpenseCategories = sortTotalsDescending(expenseTotals);
   const nodes = new Map<string, SankeyNode>();
   const links: SankeyLink[] = [];
+  const totalIncomeSplitLinks: SankeyLink[] = [];
   const totalIncomeDepth = orderedIncomeSources.length > 0 ? 1 : 0;
   const totalExpenseDepth = totalIncomeDepth + 1;
   const profitDepth = totalExpenseDepth;
@@ -119,7 +120,7 @@ export function transformFlowToSankeyData(
   if (metrics.totalExpense > 0) {
     addNode({ name: "총수입", depth: totalIncomeDepth, category: "총수입" });
     addNode({ name: "총지출", depth: totalExpenseDepth, category: "총지출" });
-    links.push({
+    totalIncomeSplitLinks.push({
       source: "총수입",
       target: "총지출",
       value: Math.min(metrics.totalIncome || metrics.totalExpense, metrics.totalExpense),
@@ -128,7 +129,7 @@ export function transformFlowToSankeyData(
 
   if (metrics.netAmount > 0) {
     addNode({ name: "순이익", depth: profitDepth, category: "순이익" });
-    links.push({ source: "총수입", target: "순이익", value: metrics.netAmount });
+    totalIncomeSplitLinks.push({ source: "총수입", target: "순이익", value: metrics.netAmount });
   }
 
   if (metrics.netAmount < 0) {
@@ -136,6 +137,8 @@ export function transformFlowToSankeyData(
     addNode({ name: "총지출", depth: totalExpenseDepth, category: "총지출" });
     links.push({ source: "초과지출", target: "총지출", value: Math.abs(metrics.netAmount) });
   }
+
+  links.push(...totalIncomeSplitLinks.sort((a, b) => b.value - a.value));
 
   orderedExpenseCategories.forEach(([category, value]) => {
     addNode({ name: "총지출", depth: totalExpenseDepth, category: "총지출" });
