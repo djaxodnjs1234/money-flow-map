@@ -456,9 +456,9 @@ function getDefaultLayoutPositions(
       value: link.value,
     })),
     {
-      end: 0.9,
-      gap: 0.026,
-      start: 0.07,
+      end: 0.94,
+      gap: 0.04,
+      start: 0.05,
     },
   );
   const categoryYs = stackPositionsByValue(
@@ -474,8 +474,8 @@ function getDefaultLayoutPositions(
   );
 
   setPosition(positions, nodeMeta, "총수입", x.totalIncome, 0.06);
-  setPosition(positions, nodeMeta, "순이익", x.split, 0.02);
-  setPosition(positions, nodeMeta, "총지출", x.split, 0.58);
+  setPosition(positions, nodeMeta, "총지출", x.split, 0.14);
+  setPosition(positions, nodeMeta, "순이익", x.split, 0.58);
   setPosition(positions, nodeMeta, "초과지출", x.totalIncome, 0.04);
 
   incomeSourceLinks.forEach((link) => {
