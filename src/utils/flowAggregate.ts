@@ -89,10 +89,8 @@ export function transformFlowToSankeyData(
   const orderedExpenseCategories = sortTotalsDescending(expenseTotals);
   const nodes = new Map<string, SankeyNode>();
   const links: SankeyLink[] = [];
-  const hasDetailedIncome = orderedIncomeSources.length > 0;
-  const incomeCategoryDepth = hasDetailedIncome ? 1 : 0;
-  const totalIncomeDepth = hasDetailedIncome ? 2 : 1;
-  const totalExpenseDepth = hasDetailedIncome ? 3 : 2;
+  const totalIncomeDepth = orderedIncomeSources.length > 0 ? 1 : 0;
+  const totalExpenseDepth = totalIncomeDepth + 1;
   const profitDepth = totalExpenseDepth;
   const expenseCategoryDepth = totalExpenseDepth + 1;
   const expenseSubcategoryDepth = showSubcategories ? expenseCategoryDepth + 1 : expenseCategoryDepth;
@@ -104,11 +102,6 @@ export function transformFlowToSankeyData(
   };
 
   if (metrics.totalIncome > 0) {
-    addNode({
-      name: INCOME_PARENT_CATEGORY,
-      depth: incomeCategoryDepth,
-      category: INCOME_PARENT_CATEGORY,
-    });
     addNode({ name: "총수입", depth: totalIncomeDepth, category: "총수입" });
 
     orderedIncomeSources.forEach(([source, value]) => {
@@ -119,13 +112,7 @@ export function transformFlowToSankeyData(
         depth: 0,
         category: source,
       });
-      links.push({ source: nodeName, target: INCOME_PARENT_CATEGORY, value });
-    });
-
-    links.push({
-      source: INCOME_PARENT_CATEGORY,
-      target: "총수입",
-      value: metrics.totalIncome,
+      links.push({ source: nodeName, target: "총수입", value });
     });
   }
 

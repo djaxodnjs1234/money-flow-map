@@ -73,9 +73,7 @@ export default function DashboardPage({ board }: DashboardPageProps) {
         .map(([label, value]) => ({ label, value })),
     [expenseTotals],
   );
-  const chartHeight = showSubcategories
-    ? getChartHeight(detailedSankeyData, true)
-    : getChartHeight(basicSankeyData, false);
+  const chartHeight = getChartHeight(basicSankeyData);
   const basicLayout = boardLayouts?.basic ?? EMPTY_LAYOUT;
   const detailedLayout = useMemo(
     () => ({
@@ -96,14 +94,14 @@ export default function DashboardPage({ board }: DashboardPageProps) {
       const basicImage = await renderSankeyImage({
         data: basicSankeyData,
         detailed: false,
-        height: getChartHeight(basicSankeyData, false),
+        height: getChartHeight(basicSankeyData),
         layoutPositions: basicLayout,
         title: diagramTitle,
       });
       const detailedImage = await renderSankeyImage({
         data: detailedSankeyData,
         detailed: true,
-        height: getChartHeight(detailedSankeyData, true),
+        height: getChartHeight(basicSankeyData),
         layoutPositions: detailedLayout,
         title: diagramTitle,
       });
@@ -157,8 +155,8 @@ export default function DashboardPage({ board }: DashboardPageProps) {
             <h2 className="text-lg font-semibold text-ink">{diagramTitle}</h2>
             <p className="mt-1 text-sm text-slate-500">
               {showSubcategories
-                ? "소분류 → 대분류 → 총수익/총지출 → 대분류 → 소분류"
-                : "수입 대분류 → 총수익 → 총지출/순이익 → 지출 대분류"}
+                ? "수입 항목 → 총수익/총지출 → 지출 대분류 → 소분류"
+                : "수입 항목 → 총수익 → 총지출/순이익 → 지출 대분류"}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -190,7 +188,7 @@ export default function DashboardPage({ board }: DashboardPageProps) {
           </div>
         </div>
         <div className="overflow-x-auto bg-white px-2 py-3">
-          <div className={showSubcategories ? "min-w-[1320px]" : "min-w-[1080px]"}>
+          <div className="min-w-[1080px]">
             <SankeyChart
               data={sankeyData}
               height={chartHeight}
@@ -221,11 +219,7 @@ export default function DashboardPage({ board }: DashboardPageProps) {
   );
 }
 
-function getChartHeight(data: SankeyData, detailed: boolean) {
-  if (detailed) {
-    return Math.max(860, Math.min(1120, 720 + data.nodes.length * 12));
-  }
-
+function getChartHeight(data: SankeyData) {
   return Math.max(700, Math.min(840, 620 + data.nodes.length * 8));
 }
 
@@ -242,7 +236,7 @@ async function renderSankeyImage({
   layoutPositions: SankeyLayoutPositions;
   title: string;
 }) {
-  const width = detailed ? 1700 : 1450;
+  const width = 1450;
   const container = document.createElement("div");
 
   Object.assign(container.style, {

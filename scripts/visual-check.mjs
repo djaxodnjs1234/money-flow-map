@@ -91,7 +91,7 @@ if (!zipPath) {
 await page.screenshot({ path: `${outDir}/dashboard.png`, fullPage: true });
 
 await page.getByRole("button", { name: "소분류 표시" }).click();
-await page.getByText("소분류 → 대분류").waitFor();
+await page.getByText("수입 항목 → 총수익/총지출").waitFor();
 
 const detailCanvasBox = await page.locator("canvas").first().boundingBox();
 
@@ -104,7 +104,7 @@ await page.screenshot({ path: `${outDir}/dashboard-detail.png`, fullPage: true }
 await page.getByRole("button", { name: "입력" }).click();
 await page.getByRole("heading", { name: "분기·연도별 카테고리 입력" }).waitFor();
 await page.getByRole("button", { name: "대시보드" }).click();
-await page.getByText("소분류 → 대분류").waitFor();
+await page.getByText("수입 항목 → 총수익/총지출").waitFor();
 await page.getByRole("button", { name: "입력" }).click();
 await page.getByRole("heading", { name: "분기·연도별 카테고리 입력" }).waitFor();
 await page.locator("label").filter({ hasText: /^대분류/ }).locator("select").selectOption("온라인쇼핑");

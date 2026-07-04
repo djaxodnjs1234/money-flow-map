@@ -148,7 +148,7 @@ export function createSankeyOption({
   const nodeValues = getSankeyNodeValues(data);
   const nodeMeta = new Map(data.nodes.map((node) => [node.name, node]));
   const maxNodeValue = Math.max(...Object.values(nodeValues), 1);
-  const defaultPositions = getDefaultLayoutPositions(data, detailed, layoutPositions);
+  const defaultPositions = getDefaultLayoutPositions(data, detailed);
 
   return {
     backgroundColor,
@@ -202,12 +202,12 @@ export function createSankeyOption({
     series: [
       {
         type: "sankey",
-        top: title ? (detailed ? 82 : 78) : detailed ? 34 : 30,
-        right: detailed ? 270 : 190,
-        bottom: detailed ? 34 : 30,
-        left: detailed ? 180 : 150,
-        nodeWidth: detailed ? 12 : 16,
-        nodeGap: detailed ? 18 : 24,
+        top: title ? 78 : 30,
+        right: 190,
+        bottom: 30,
+        left: 150,
+        nodeWidth: 16,
+        nodeGap: detailed ? 6 : 24,
         nodeAlign: "justify",
         layoutIterations: detailed ? 0 : 48,
         draggable: true,
@@ -246,7 +246,7 @@ export function createSankeyOption({
             totalIncome: nodeValues["총수입"] ?? 0,
             value,
           });
-          const defaultPosition = defaultPositions[node.name];
+          const defaultPosition = defaultPositions[node.name] ?? {};
           const savedPosition = layoutPositions?.[node.name];
 
           return {
@@ -327,6 +327,7 @@ function buildNodeLabel({
     displayName,
     isTotalNode,
     nodeName,
+    share,
     totalIncome,
     value,
   });
@@ -337,7 +338,8 @@ function buildNodeLabel({
     fontSize,
     lineHeight: isTotalNode ? fontSize + 5 : fontSize + 3,
     width: getNodeLabelWidth(detailed, isTotalNode, isDetailedCategory, share),
-    position: getNodeLabelPosition(detailed, depth, isTotalNode, isSubcategory),
+    position: getNodeLabelPosition(depth, isTotalNode),
+    align: isTotalNode ? ("center" as const) : undefined,
     overflow: overflow as "truncate" | "break",
     backgroundColor: isTotalNode
       ? getTotalLabelBackground(nodeName)
@@ -357,6 +359,7 @@ function getNodeLabelText({
   displayName,
   isTotalNode,
   nodeName,
+  share,
   totalIncome,
   value,
 }: {
@@ -364,6 +367,7 @@ function getNodeLabelText({
   displayName?: string;
   isTotalNode: boolean;
   nodeName: string;
+  share: number;
   totalIncome: number;
   value: number;
 }) {
@@ -382,6 +386,10 @@ function getNodeLabelText({
     return `${name} ${formatCompactKRW(value)}`;
   }
 
+  if (share < 0.035) {
+    return `${name} ${formatCompactKRW(value)}`;
+  }
+
   return `${formatLabel(name)}\n${formatCompactKRW(value)}`;
 }
 
@@ -396,7 +404,8 @@ function getNodeFontSize(share: number, detailed: boolean, isTotalNode: boolean)
   if (share >= 0.25) return detailed ? 14 : 15;
   if (share >= 0.08) return detailed ? 12 : 13;
   if (share >= 0.025) return detailed ? 10 : 11;
-  return detailed ? 8 : 9;
+  if (share >= 0.008) return detailed ? 8 : 9;
+  return detailed ? 7 : 8;
 }
 
 function getNodeLabelColor(share: number, isTotalNode: boolean) {
@@ -418,77 +427,84 @@ function getNodeLabelWidth(
 }
 
 function getNodeLabelPosition(
-  detailed: boolean,
   depth: number | undefined,
   isTotalNode: boolean,
-  isSubcategory: boolean,
-): "right" | undefined {
-  if (!detailed || isTotalNode || isSubcategory) return undefined;
-  return depth !== undefined && depth >= 3 ? "right" : undefined;
+): "inside" | "left" | "right" | undefined {
+  if (isTotalNode) return "inside";
+  if (depth === 0) return "left";
+  if (depth !== undefined && depth > 0) return "right";
+  return undefined;
 }
 
 function getDefaultLayoutPositions(
   data: SankeyData,
   detailed: boolean,
-  savedPositions?: SankeyLayoutPositions,
 ): SankeyLayoutPositions {
   const positions: SankeyLayoutPositions = {};
   const nodeMeta = new Map(data.nodes.map((node) => [node.name, node]));
   const x = detailed
     ? getHorizontalLayout(true)
     : getHorizontalLayout(false);
-  const incomeSourceLinks = data.links.filter((link) => link.target === "수입");
+  const incomeSourceLinks = data.links.filter((link) => link.target === "총수입");
   const expenseCategoryLinks = data.links.filter((link) => link.source === "총지출");
   const expenseCategories = expenseCategoryLinks
     .map((link) => link.target)
     .filter((name) => nodeMeta.has(name));
-  const categoryYs = distributePositions(expenseCategories.length, 0.08, 0.86);
+  const incomeSourceYs = stackPositionsByValue(
+    incomeSourceLinks.map((link) => ({
+      name: link.source,
+      value: link.value,
+    })),
+    {
+      end: 0.9,
+      gap: 0.026,
+      start: 0.07,
+    },
+  );
+  const categoryYs = stackPositionsByValue(
+    expenseCategoryLinks.map((link) => ({
+      name: link.target,
+      value: link.value,
+    })),
+    {
+      end: 0.9,
+      gap: detailed ? 0.028 : 0.035,
+      start: 0.08,
+    },
+  );
 
-  setPosition(positions, nodeMeta, "수입", x.incomeParent, 0.1);
   setPosition(positions, nodeMeta, "총수입", x.totalIncome, 0.06);
   setPosition(positions, nodeMeta, "순이익", x.split, 0.02);
   setPosition(positions, nodeMeta, "총지출", x.split, 0.58);
   setPosition(positions, nodeMeta, "초과지출", x.totalIncome, 0.04);
 
-  distributePositions(incomeSourceLinks.length, 0.08, 0.82).forEach((localY, index) => {
-    setPosition(positions, nodeMeta, incomeSourceLinks[index].source, x.incomeSource, localY);
+  incomeSourceLinks.forEach((link) => {
+    setPosition(positions, nodeMeta, link.source, x.incomeSource, incomeSourceYs[link.source]);
   });
 
-  expenseCategories.forEach((category, index) => {
-    setPosition(positions, nodeMeta, category, x.expenseCategory, categoryYs[index]);
+  expenseCategories.forEach((category) => {
+    setPosition(positions, nodeMeta, category, x.expenseCategory, categoryYs[category]);
   });
 
   if (detailed) {
-    const categoryAnchors = expenseCategories
-      .map((category, index) => ({
-        category,
-        localY: clamp(savedPositions?.[category]?.localY ?? categoryYs[index], 0.04, 0.92),
-      }));
+    const subcategoryLinks = expenseCategories.flatMap((category) =>
+      data.links
+        .filter((link) => link.source === category)
+        .map((link) => ({
+          group: category,
+          name: link.target,
+          value: link.value,
+        })),
+    );
+    const subcategoryYs = stackPositionsByValue(subcategoryLinks, {
+      end: 0.95,
+      gap: 0.016,
+      groupGap: 0.032,
+      start: 0.035,
+    });
 
-    categoryAnchors.forEach(({ category, localY }, index) => {
-      const previousY = categoryAnchors[index - 1]?.localY;
-      const nextY = categoryAnchors[index + 1]?.localY;
-      const bandTop = previousY === undefined ? 0.02 : (previousY + localY) / 2;
-      const bandBottom = nextY === undefined ? 0.96 : (localY + nextY) / 2;
-      const subcategoryLinks = data.links.filter((link) => link.source === category);
-      const subcategoryYs =
-        subcategoryLinks.length === 1
-          ? [localY]
-          : distributePositions(
-              subcategoryLinks.length,
-              bandTop + 0.01,
-              bandBottom - 0.01,
-            );
-
-      subcategoryLinks.forEach((link, subcategoryIndex) => {
-        setPosition(
-          positions,
-          nodeMeta,
-          link.target,
-          x.expenseSubcategory,
-          subcategoryYs[subcategoryIndex],
-        );
-      });
+    subcategoryLinks.forEach((link) => {
+      setPosition(positions, nodeMeta, link.name, x.expenseSubcategory, subcategoryYs[link.name]);
     });
   }
 
@@ -498,8 +514,7 @@ function getDefaultLayoutPositions(
 function getHorizontalLayout(detailed: boolean) {
   return {
     incomeSource: 0.02,
-    incomeParent: 0.18,
-    totalIncome: 0.34,
+    totalIncome: 0.28,
     split: 0.54,
     expenseCategory: 0.74,
     expenseSubcategory: detailed ? 0.92 : 0.92,
@@ -520,12 +535,49 @@ function setPosition(
   };
 }
 
-function distributePositions(count: number, start: number, end: number) {
-  if (count <= 0) return [];
-  if (count === 1) return [(start + end) / 2];
+function stackPositionsByValue(
+  items: Array<{ name: string; value: number; group?: string }>,
+  {
+    end,
+    gap,
+    groupGap = gap,
+    start,
+  }: {
+    end: number;
+    gap: number;
+    groupGap?: number;
+    start: number;
+  },
+) {
+  const positions: Record<string, number> = {};
+  const totalValue = items.reduce((sum, item) => sum + Math.max(item.value, 0), 0);
 
-  const step = (end - start) / (count - 1);
-  return Array.from({ length: count }, (_, index) => start + step * index);
+  if (items.length === 0) return positions;
+  if (items.length === 1 || totalValue <= 0) {
+    positions[items[0].name] = start;
+    return positions;
+  }
+
+  const desiredGaps = items.slice(1).map((item, index) => {
+    const previous = items[index];
+    return item.group !== undefined && item.group !== previous.group ? groupGap : gap;
+  });
+  const range = Math.max(end - start, 0.01);
+  const desiredGapTotal = desiredGaps.reduce((sum, value) => sum + value, 0);
+  const gapScale =
+    desiredGapTotal > 0 ? Math.min(1, (range * 0.62) / desiredGapTotal) : 1;
+  const gaps = desiredGaps.map((value) => value * gapScale);
+  const gapTotal = gaps.reduce((sum, value) => sum + value, 0);
+  const valueRange = Math.max(range - gapTotal, range * 0.22);
+  const valueScale = valueRange / totalValue;
+  let cursor = start;
+
+  items.forEach((item, index) => {
+    positions[item.name] = clamp(cursor, start, end);
+    cursor += Math.max(item.value, 0) * valueScale + (gaps[index] ?? 0);
+  });
+
+  return positions;
 }
 
 function clamp(value: number, min: number, max: number) {
