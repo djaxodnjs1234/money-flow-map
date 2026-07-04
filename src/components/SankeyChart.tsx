@@ -323,6 +323,7 @@ function buildNodeLabel({
   const fontSize = getNodeFontSize(share, detailed, isTotalNode);
   const overflow = detailed ? "truncate" : "break";
   const labelText = getNodeLabelText({
+    depth,
     detailed,
     displayName,
     isTotalNode,
@@ -355,6 +356,7 @@ function buildNodeLabel({
 }
 
 function getNodeLabelText({
+  depth,
   detailed,
   displayName,
   isTotalNode,
@@ -363,6 +365,7 @@ function getNodeLabelText({
   totalIncome,
   value,
 }: {
+  depth?: number;
   detailed: boolean;
   displayName?: string;
   isTotalNode: boolean;
@@ -383,6 +386,10 @@ function getNodeLabelText({
   }
 
   if (detailed) {
+    return `${name} ${formatCompactKRW(value)}`;
+  }
+
+  if (depth === 0) {
     return `${name} ${formatCompactKRW(value)}`;
   }
 
@@ -469,12 +476,12 @@ function getDefaultLayoutPositions(
     {
       end: 0.9,
       gap: detailed ? 0.028 : 0.035,
-      start: 0.08,
+      start: 0.03,
     },
   );
 
   setPosition(positions, nodeMeta, "총수입", x.totalIncome, 0.06);
-  setPosition(positions, nodeMeta, "총지출", x.split, 0.14);
+  setPosition(positions, nodeMeta, "총지출", x.split, 0.04);
   setPosition(positions, nodeMeta, "순이익", x.split, 0.58);
   setPosition(positions, nodeMeta, "초과지출", x.totalIncome, 0.04);
 
