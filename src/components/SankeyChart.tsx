@@ -33,6 +33,7 @@ type TooltipParam = {
 
 interface SankeyChartProps {
   data: SankeyData;
+  detailData?: SankeyData;
   height?: number;
   detailed?: boolean;
   layoutPositions?: SankeyLayoutPositions;
@@ -43,6 +44,7 @@ interface SankeyChartProps {
 interface CreateSankeyOptionInput {
   backgroundColor?: string;
   data: SankeyData;
+  detailData?: SankeyData;
   detailed: boolean;
   layoutPositions?: SankeyLayoutPositions;
   title?: string;
@@ -50,6 +52,7 @@ interface CreateSankeyOptionInput {
 
 export default function SankeyChart({
   data,
+  detailData,
   detailed = false,
   height = 560,
   layoutPositions,
@@ -62,8 +65,8 @@ export default function SankeyChart({
   const dragSaveTimerRef = useRef<number | null>(null);
   const hasData = data.links.length > 0;
   const option = useMemo(
-    () => createSankeyOption({ data, detailed, layoutPositions, title }),
-    [data, detailed, layoutPositions, title],
+    () => createSankeyOption({ data, detailData, detailed, layoutPositions, title }),
+    [data, detailData, detailed, layoutPositions, title],
   );
 
   useEffect(() => {
@@ -141,6 +144,7 @@ export default function SankeyChart({
 export function createSankeyOption({
   backgroundColor = "transparent",
   data,
+  detailData,
   detailed,
   layoutPositions,
   title,
@@ -148,7 +152,103 @@ export function createSankeyOption({
   const nodeValues = getSankeyNodeValues(data);
   const nodeMeta = new Map(data.nodes.map((node) => [node.name, node]));
   const maxNodeValue = Math.max(...Object.values(nodeValues), 1);
-  const defaultPositions = getDefaultLayoutPositions(data, detailed);
+  const defaultPositions = getDefaultLayoutPositions(data, false);
+  const detailDefaultPositions = detailData
+    ? getDefaultLayoutPositions(detailData, true)
+    : undefined;
+  const series: SankeySeriesOption[] = [
+    {
+      type: "sankey",
+      top: title ? 78 : 30,
+      right: 190,
+      bottom: 30,
+      left: 150,
+      nodeWidth: 16,
+      nodeGap: 24,
+      nodeAlign: "justify",
+      layoutIterations: 0,
+      z: 3,
+      draggable: true,
+      emphasis: {
+        focus: "adjacency",
+      },
+      labelLayout: {
+        moveOverlap: "shiftY",
+        hideOverlap: false,
+      },
+      label: {
+        color: "#172033",
+        fontWeight: 700,
+        fontSize: 12,
+        lineHeight: 16,
+        width: 140,
+        overflow: "break",
+      },
+      lineStyle: {
+        color: "gradient",
+        opacity: 0.46,
+        curveness: 0.46,
+      },
+      itemStyle: {
+        borderColor: "rgba(23, 32, 51, 0.28)",
+        borderWidth: 0.5,
+      },
+      data: data.nodes.map((node) => {
+        const value = nodeValues[node.name] ?? 0;
+        const label = buildNodeLabel({
+          depth: node.depth,
+          detailed,
+          displayName: node.displayName,
+          maxNodeValue,
+          nodeName: node.name,
+          totalIncome: nodeValues["총수입"] ?? 0,
+          value,
+        });
+        const defaultPosition = defaultPositions[node.name] ?? {};
+        const savedPosition = layoutPositions?.[node.name];
+        const forceIncomeSourcePosition = isIncomeSourceNode(node.name, data);
+
+        return {
+          ...node,
+          depth: node.depth,
+          draggable: true,
+          label,
+          localX: forceIncomeSourcePosition
+            ? defaultPosition.localX
+            : savedPosition?.localX ?? defaultPosition.localX,
+          localY: forceIncomeSourcePosition
+            ? defaultPosition.localY
+            : savedPosition?.localY ?? defaultPosition.localY,
+          itemStyle: {
+            color: CATEGORY_COLORS[node.category ?? node.name] ?? "#64748b",
+          },
+        };
+      }),
+      links: orderSankeyLinks(data.links).map((link) => ({
+        ...link,
+        lineStyle: {
+          color:
+            CATEGORY_COLORS[nodeMeta.get(link.source)?.category ?? link.source] ??
+            CATEGORY_COLORS[nodeMeta.get(link.target)?.category ?? link.target] ??
+            "#94a3b8",
+        },
+      })),
+    },
+  ];
+
+  if (detailed && detailData && detailDefaultPositions) {
+    series.push(
+      createSubcategoryOverlaySeries({
+        baseData: data,
+        baseDefaultPositions: defaultPositions,
+        detailData,
+        detailDefaultPositions,
+        layoutPositions,
+        maxNodeValue,
+        totalIncome: nodeValues["총수입"] ?? 0,
+      }),
+    );
+  }
 
   return {
     backgroundColor,
@@ -156,11 +256,11 @@ export function createSankeyOption({
     title: title
       ? {
           text: title,
-          left: detailed ? 12 : 10,
+          left: 10,
           top: 10,
           textStyle: {
             color: "#172033",
-            fontSize: detailed ? 16 : 17,
+            fontSize: 17,
             fontWeight: 700,
             fontFamily:
               'Pretendard, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -199,79 +299,7 @@ export function createSankeyOption({
         return `<strong>${displayNodeName(item.name ?? "", meta?.displayName)}</strong><br/>${formatKRW(value)}`;
       },
     },
-    series: [
-      {
-        type: "sankey",
-        top: title ? 78 : 30,
-        right: 190,
-        bottom: 30,
-        left: 150,
-        nodeWidth: 16,
-        nodeGap: detailed ? 6 : 24,
-        nodeAlign: "justify",
-        layoutIterations: detailed ? 0 : 48,
-        draggable: true,
-        emphasis: {
-          focus: "adjacency",
-        },
-        labelLayout: {
-          moveOverlap: "shiftY",
-          hideOverlap: false,
-        },
-        label: {
-          color: "#172033",
-          fontWeight: 700,
-          fontSize: detailed ? 10 : 12,
-          lineHeight: detailed ? 13 : 16,
-          width: detailed ? 150 : 140,
-          overflow: detailed ? "truncate" : "break",
-        },
-        lineStyle: {
-          color: "gradient",
-          opacity: detailed ? 0.42 : 0.46,
-          curveness: 0.46,
-        },
-        itemStyle: {
-          borderColor: "rgba(23, 32, 51, 0.28)",
-          borderWidth: 0.5,
-        },
-        data: data.nodes.map((node) => {
-          const value = nodeValues[node.name] ?? 0;
-          const label = buildNodeLabel({
-            depth: node.depth,
-            detailed,
-            displayName: node.displayName,
-            maxNodeValue,
-            nodeName: node.name,
-            totalIncome: nodeValues["총수입"] ?? 0,
-            value,
-          });
-          const defaultPosition = defaultPositions[node.name] ?? {};
-          const savedPosition = layoutPositions?.[node.name];
-
-          return {
-            ...node,
-            depth: node.depth,
-            draggable: true,
-            label,
-            localX: savedPosition?.localX ?? defaultPosition.localX,
-            localY: savedPosition?.localY ?? defaultPosition.localY,
-            itemStyle: {
-              color: CATEGORY_COLORS[node.category ?? node.name] ?? "#64748b",
-            },
-          };
-        }),
-        links: data.links.map((link) => ({
-          ...link,
-          lineStyle: {
-            color:
-              CATEGORY_COLORS[nodeMeta.get(link.source)?.category ?? link.source] ??
-              CATEGORY_COLORS[nodeMeta.get(link.target)?.category ?? link.target] ??
-              "#94a3b8",
-          },
-        })),
-      },
-    ],
+    series,
   };
 }
 
@@ -293,6 +321,145 @@ export function extractLayoutPositions(chart: EChartsType): SankeyLayoutPosition
     };
     return acc;
   }, {});
+}
+
+function createSubcategoryOverlaySeries({
+  baseData,
+  baseDefaultPositions,
+  detailData,
+  detailDefaultPositions,
+  layoutPositions,
+  maxNodeValue,
+  totalIncome,
+}: {
+  baseData: SankeyData;
+  baseDefaultPositions: SankeyLayoutPositions;
+  detailData: SankeyData;
+  detailDefaultPositions: SankeyLayoutPositions;
+  layoutPositions?: SankeyLayoutPositions;
+  maxNodeValue: number;
+  totalIncome: number;
+}): SankeySeriesOption {
+  const baseNodeMeta = new Map(baseData.nodes.map((node) => [node.name, node]));
+  const detailNodeMeta = new Map(detailData.nodes.map((node) => [node.name, node]));
+  const detailNodeValues = getSankeyNodeValues(detailData);
+  const subcategoryLinks = detailData.links.filter((link) =>
+    isExpenseSubcategoryNode(detailNodeMeta.get(link.target)),
+  );
+  const categoryNames = [...new Set(subcategoryLinks.map((link) => link.source))];
+  const calibrationSource = "__overlay_calibration_source";
+  const calibrationTarget = "__overlay_calibration_target";
+  const hiddenNodeStyle = {
+    color: "rgba(0, 0, 0, 0)",
+    opacity: 0,
+  };
+
+  return {
+    type: "sankey",
+    top: 78,
+    right: 190,
+    bottom: 30,
+    left: 150,
+    nodeWidth: 16,
+    nodeGap: 6,
+    nodeAlign: "justify",
+    layoutIterations: 0,
+    z: 2,
+    draggable: false,
+    emphasis: {
+      disabled: true,
+    },
+    labelLayout: {
+      moveOverlap: "shiftY",
+      hideOverlap: false,
+    },
+    label: {
+      show: false,
+    },
+    lineStyle: {
+      color: "gradient",
+      opacity: 0.42,
+      curveness: 0.46,
+    },
+    itemStyle: {
+      borderWidth: 0,
+    },
+    data: [
+      {
+        name: calibrationSource,
+        localX: 0.28,
+        localY: 0.04,
+        label: { show: false },
+        itemStyle: hiddenNodeStyle,
+      },
+      {
+        name: calibrationTarget,
+        localX: 0.54,
+        localY: 0.04,
+        label: { show: false },
+        itemStyle: hiddenNodeStyle,
+      },
+      ...categoryNames.map((category) => {
+        const position = layoutPositions?.[category] ?? baseDefaultPositions[category] ?? {};
+        const node = baseNodeMeta.get(category) ?? detailNodeMeta.get(category);
+
+        return {
+          name: category,
+          depth: node?.depth,
+          localX: position.localX,
+          localY: position.localY,
+          label: { show: false },
+          itemStyle: hiddenNodeStyle,
+        };
+      }),
+      ...subcategoryLinks.map((link) => {
+        const node = detailNodeMeta.get(link.target);
+        const position = layoutPositions?.[link.target] ?? detailDefaultPositions[link.target] ?? {};
+        const value = detailNodeValues[link.target] ?? link.value;
+
+        return {
+          ...node,
+          name: link.target,
+          depth: node?.depth,
+          localX: position.localX,
+          localY: position.localY,
+          label: buildNodeLabel({
+            depth: node?.depth,
+            detailed: true,
+            displayName: node?.displayName,
+            maxNodeValue,
+            nodeName: link.target,
+            totalIncome,
+            value,
+          }),
+          itemStyle: {
+            color: CATEGORY_COLORS[node?.category ?? link.source] ?? "#64748b",
+          },
+        };
+      }),
+    ],
+    links: [
+      {
+        source: calibrationSource,
+        target: calibrationTarget,
+        value: Math.max(totalIncome, 1),
+        lineStyle: {
+          opacity: 0,
+        },
+      },
+      ...subcategoryLinks.map((link) => {
+        const sourceNode = detailNodeMeta.get(link.source);
+
+        return {
+          ...link,
+          lineStyle: {
+            color: CATEGORY_COLORS[sourceNode?.category ?? link.source] ?? "#94a3b8",
+            opacity: 0.42,
+          },
+        };
+      }),
+    ],
+  };
 }
 
 function formatLabel(name: string) {
@@ -318,10 +485,12 @@ function buildNodeLabel({
 }) {
   const isTotalNode = ["총수입", "총지출", "순이익", "초과지출"].includes(nodeName);
   const isSubcategory = Boolean(displayName);
-  const isDetailedCategory = detailed && !isTotalNode && !isSubcategory;
+  const isCompactSubcategory = detailed && isSubcategory && depth !== 0;
   const share = value / Math.max(maxNodeValue, 1);
-  const fontSize = getNodeFontSize(share, detailed, isTotalNode);
-  const overflow = detailed ? "truncate" : "break";
+  const isIncomeSource = depth === 0 && !isTotalNode;
+  const labelScale = getNodeLabelScale(depth, isTotalNode, nodeName);
+  const fontSize = getNodeFontSize(share, isCompactSubcategory, isTotalNode) * labelScale;
+  const overflow = isCompactSubcategory ? "truncate" : "break";
   const labelText = getNodeLabelText({
     depth,
     detailed,
@@ -337,20 +506,20 @@ function buildNodeLabel({
     color: getNodeLabelColor(share, isTotalNode),
     fontWeight: isTotalNode || share >= 0.08 ? 700 : 500,
     fontSize,
-    lineHeight: isTotalNode ? fontSize + 5 : fontSize + 3,
-    width: getNodeLabelWidth(detailed, isTotalNode, isDetailedCategory, share),
+    lineHeight: isTotalNode
+      ? fontSize + (isCompactTotalLabel(nodeName) ? 4 : 5)
+      : fontSize + 3,
+    width: getNodeLabelWidth(isCompactSubcategory, isTotalNode, share, isIncomeSource),
     position: getNodeLabelPosition(depth, isTotalNode),
     align: isTotalNode ? ("center" as const) : undefined,
     overflow: overflow as "truncate" | "break",
     backgroundColor: isTotalNode
       ? getTotalLabelBackground(nodeName)
-      : isDetailedCategory
-        ? "rgba(255, 255, 255, 0.72)"
-        : undefined,
+      : undefined,
     borderColor: isTotalNode ? getTotalLabelBorder(nodeName) : undefined,
     borderWidth: isTotalNode ? 1 : 0,
-    borderRadius: isTotalNode ? 6 : isDetailedCategory ? 4 : 0,
-    padding: isTotalNode ? [6, 8] : isDetailedCategory ? [2, 4] : 0,
+    borderRadius: isTotalNode ? 6 : 0,
+    padding: isTotalNode ? getTotalLabelPadding(nodeName) : 0,
     formatter: () => labelText,
   };
 }
@@ -385,7 +554,7 @@ function getNodeLabelText({
     return `${name}\n${formatCompactKRW(value)}`;
   }
 
-  if (detailed) {
+  if (detailed && displayName && depth !== 0) {
     return `${name} ${formatCompactKRW(value)}`;
   }
 
@@ -406,13 +575,35 @@ function displayNodeName(nodeName: string, displayName?: string) {
   return displayName ?? nodeName;
 }
 
-function getNodeFontSize(share: number, detailed: boolean, isTotalNode: boolean) {
-  if (isTotalNode) return detailed ? 14 : 16;
-  if (share >= 0.25) return detailed ? 14 : 15;
-  if (share >= 0.08) return detailed ? 12 : 13;
-  if (share >= 0.025) return detailed ? 10 : 11;
-  if (share >= 0.008) return detailed ? 8 : 9;
-  return detailed ? 7 : 8;
+function isIncomeSourceNode(nodeName: string, data: SankeyData) {
+  return data.links.some((link) => link.source === nodeName && link.target === "총수입");
+}
+
+function isExpenseSubcategoryNode(node?: SankeyData["nodes"][number]) {
+  return Boolean(node?.displayName && node.depth !== undefined && node.depth > 0);
+}
+
+function getNodeLabelScale(
+  depth: number | undefined,
+  isTotalNode: boolean,
+  nodeName: string,
+) {
+  if (depth === 0 && !isTotalNode) return 0.9;
+  if (isCompactTotalLabel(nodeName)) return 0.9;
+  return 1;
+}
+
+function isCompactTotalLabel(nodeName: string) {
+  return nodeName === "순이익" || nodeName === "총지출";
+}
+
+function getNodeFontSize(share: number, compact: boolean, isTotalNode: boolean) {
+  if (isTotalNode) return 16;
+  if (share >= 0.25) return compact ? 14 : 15;
+  if (share >= 0.08) return compact ? 12 : 13;
+  if (share >= 0.025) return compact ? 10 : 11;
+  if (share >= 0.008) return compact ? 8 : 9;
+  return compact ? 7 : 8;
 }
 
 function getNodeLabelColor(share: number, isTotalNode: boolean) {
@@ -423,14 +614,15 @@ function getNodeLabelColor(share: number, isTotalNode: boolean) {
 }
 
 function getNodeLabelWidth(
-  detailed: boolean,
+  compact: boolean,
   isTotalNode: boolean,
-  isDetailedCategory: boolean,
   share: number,
+  isIncomeSource: boolean,
 ) {
-  if (isTotalNode || isDetailedCategory) return undefined;
-  if (detailed) return share >= 0.08 ? 130 : 118;
-  return share >= 0.08 ? 132 : 118;
+  if (isTotalNode) return undefined;
+  const width = compact ? (share >= 0.08 ? 130 : 118) : (share >= 0.08 ? 132 : 118);
+
+  return isIncomeSource ? width * 0.9 : width;
 }
 
 function getNodeLabelPosition(
@@ -457,16 +649,11 @@ function getDefaultLayoutPositions(
   const expenseCategories = expenseCategoryLinks
     .map((link) => link.target)
     .filter((name) => nodeMeta.has(name));
-  const incomeSourceYs = stackPositionsByValue(
+  const incomeSourceYs = stackIncomeSourcePositions(
     incomeSourceLinks.map((link) => ({
       name: link.source,
       value: link.value,
     })),
-    {
-      end: 0.94,
-      gap: 0.04,
-      start: 0.05,
-    },
   );
   const categoryYs = stackPositionsByValue(
     expenseCategoryLinks.map((link) => ({
@@ -480,9 +667,9 @@ function getDefaultLayoutPositions(
     },
   );
 
-  setPosition(positions, nodeMeta, "총수입", x.totalIncome, 0.06);
-  setPosition(positions, nodeMeta, "총지출", x.split, 0.04);
-  setPosition(positions, nodeMeta, "순이익", x.split, 0.58);
+  setPosition(positions, nodeMeta, "총수입", x.totalIncome, 0.04);
+  setPosition(positions, nodeMeta, "순이익", x.split, 0.04);
+  setPosition(positions, nodeMeta, "총지출", x.split, 0.58);
   setPosition(positions, nodeMeta, "초과지출", x.totalIncome, 0.04);
 
   incomeSourceLinks.forEach((link) => {
@@ -524,7 +711,7 @@ function getHorizontalLayout(detailed: boolean) {
     totalIncome: 0.28,
     split: 0.54,
     expenseCategory: 0.74,
-    expenseSubcategory: detailed ? 0.92 : 0.92,
+    expenseSubcategory: detailed ? 0.94 : 0.92,
   };
 }
 
@@ -587,16 +774,71 @@ function stackPositionsByValue(
   return positions;
 }
 
+function stackIncomeSourcePositions(items: Array<{ name: string; value: number }>) {
+  const positions: Record<string, number> = {};
+  const totalValue = items.reduce((sum, item) => sum + Math.max(item.value, 0), 0);
+
+  if (items.length === 0 || totalValue <= 0) return positions;
+
+  const majorItems = items.filter((item) => item.value / totalValue >= 0.08);
+  const minorItems = items.filter((item) => item.value / totalValue < 0.08);
+  const majorPositions = stackPositionsByValue(majorItems, {
+    end: minorItems.length > 0 ? 0.7 : 0.94,
+    gap: 0.06,
+    start: 0,
+  });
+
+  Object.assign(positions, majorPositions);
+
+  if (minorItems.length > 0) {
+    const minorYs = spreadPositions(minorItems.length, 0.78, 0.98);
+
+    minorItems.forEach((item, index) => {
+      positions[item.name] = minorYs[index];
+    });
+  }
+
+  return positions;
+}
+
+function spreadPositions(count: number, start: number, end: number) {
+  if (count <= 0) return [];
+  if (count === 1) return [(start + end) / 2];
+
+  const step = (end - start) / (count - 1);
+  return Array.from({ length: count }, (_, index) => start + step * index);
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+function orderSankeyLinks(links: SankeyData["links"]) {
+  return [...links].sort((a, b) => {
+    if (a.source !== b.source || a.source !== "총수입") return 0;
+
+    return getTotalIncomeTargetRank(a.target) - getTotalIncomeTargetRank(b.target);
+  });
+}
+
+function getTotalIncomeTargetRank(target: string) {
+  if (target === "순이익") return 0;
+  if (target === "총지출") return 1;
+  return 2;
+}
+
 function getTotalLabelBackground(nodeName: string) {
   if (nodeName === "초과지출") return "rgba(148, 163, 184, 0.24)";
+  if (nodeName === "총수입") return "rgba(226, 232, 240, 0.78)";
   return "rgba(100, 116, 139, 0.16)";
 }
 
 function getTotalLabelBorder(nodeName: string) {
   if (nodeName === "초과지출") return "rgba(100, 116, 139, 0.28)";
+  if (nodeName === "총수입") return "rgba(71, 85, 105, 0.32)";
   return "rgba(71, 85, 105, 0.18)";
+}
+
+function getTotalLabelPadding(nodeName: string): [number, number] {
+  return isCompactTotalLabel(nodeName) ? [5, 7] : [6, 8];
 }

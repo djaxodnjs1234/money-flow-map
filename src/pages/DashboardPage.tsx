@@ -48,7 +48,7 @@ export default function DashboardPage({ board }: DashboardPageProps) {
     () => transformFlowToSankeyData(filteredEntries, { showSubcategories: true }),
     [filteredEntries],
   );
-  const sankeyData = showSubcategories ? detailedSankeyData : basicSankeyData;
+  const sankeyData = basicSankeyData;
   const incomeTotals = useMemo(
     () => aggregateFlowByCategory(filteredEntries, "income"),
     [filteredEntries],
@@ -75,14 +75,7 @@ export default function DashboardPage({ board }: DashboardPageProps) {
   );
   const chartHeight = getChartHeight(basicSankeyData);
   const basicLayout = boardLayouts?.basic ?? EMPTY_LAYOUT;
-  const detailedLayout = useMemo(
-    () => ({
-      ...(boardLayouts?.detailed ?? EMPTY_LAYOUT),
-      ...basicLayout,
-    }),
-    [basicLayout, boardLayouts?.detailed],
-  );
-  const activeLayout = showSubcategories ? detailedLayout : basicLayout;
+  const activeLayout = basicLayout;
 
   async function handleDownloadDiagramZip() {
     if (basicSankeyData.links.length === 0) return;
@@ -99,10 +92,11 @@ export default function DashboardPage({ board }: DashboardPageProps) {
         title: diagramTitle,
       });
       const detailedImage = await renderSankeyImage({
-        data: detailedSankeyData,
+        data: basicSankeyData,
+        detailData: detailedSankeyData,
         detailed: true,
         height: getChartHeight(basicSankeyData),
-        layoutPositions: detailedLayout,
+        layoutPositions: basicLayout,
         title: diagramTitle,
       });
       const databaseBackup = {
@@ -191,12 +185,13 @@ export default function DashboardPage({ board }: DashboardPageProps) {
           <div className="min-w-[1080px]">
             <SankeyChart
               data={sankeyData}
+              detailData={detailedSankeyData}
               height={chartHeight}
               detailed={showSubcategories}
               layoutPositions={activeLayout}
               title={diagramTitle}
               onLayoutChange={(positions) =>
-                setSankeyLayout(board.id, showSubcategories ? "detailed" : "basic", positions)
+                setSankeyLayout(board.id, "basic", positions)
               }
             />
           </div>
@@ -225,12 +220,14 @@ function getChartHeight(data: SankeyData) {
 
 async function renderSankeyImage({
   data,
+  detailData,
   detailed,
   height,
   layoutPositions,
   title,
 }: {
   data: SankeyData;
+  detailData?: SankeyData;
   detailed: boolean;
   height: number;
   layoutPositions: SankeyLayoutPositions;
@@ -261,6 +258,7 @@ async function renderSankeyImage({
       createSankeyOption({
         backgroundColor: "#ffffff",
         data,
+        detailData,
         detailed,
         layoutPositions,
         title,
