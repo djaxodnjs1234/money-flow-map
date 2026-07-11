@@ -151,6 +151,9 @@ export function createSankeyOption({
 }: CreateSankeyOptionInput): SankeyOption {
   const nodeValues = getSankeyNodeValues(data);
   const nodeMeta = new Map(data.nodes.map((node) => [node.name, node]));
+  const tooltipData = detailed && detailData ? detailData : data;
+  const tooltipNodeValues = getSankeyNodeValues(tooltipData);
+  const tooltipNodeMeta = new Map(tooltipData.nodes.map((node) => [node.name, node]));
   const maxNodeValue = Math.max(...Object.values(nodeValues), 1);
   const defaultPositions = getDefaultLayoutPositions(data, false);
   const detailDefaultPositions = detailData
@@ -206,17 +209,18 @@ export function createSankeyOption({
         });
         const defaultPosition = defaultPositions[node.name] ?? {};
         const savedPosition = layoutPositions?.[node.name];
-        const forceIncomeSourcePosition = isIncomeSourceNode(node.name, data);
+        const forceDefaultPosition =
+          isIncomeSourceNode(node.name, data) || isFixedSplitNode(node.name);
 
         return {
           ...node,
           depth: node.depth,
-          draggable: true,
+          draggable: !isFixedSplitNode(node.name),
           label,
-          localX: forceIncomeSourcePosition
+          localX: forceDefaultPosition
             ? defaultPosition.localX
             : savedPosition?.localX ?? defaultPosition.localX,
-          localY: forceIncomeSourcePosition
+          localY: forceDefaultPosition
             ? defaultPosition.localY
             : savedPosition?.localY ?? defaultPosition.localY,
           itemStyle: {
@@ -284,18 +288,18 @@ export function createSankeyOption({
         if (item.dataType === "edge" && item.data?.source && item.data?.target) {
           const source = displayNodeName(
             item.data.source,
-            nodeMeta.get(item.data.source)?.displayName,
+            tooltipNodeMeta.get(item.data.source)?.displayName,
           );
           const target = displayNodeName(
             item.data.target,
-            nodeMeta.get(item.data.target)?.displayName,
+            tooltipNodeMeta.get(item.data.target)?.displayName,
           );
 
           return `<strong>${source} → ${target}</strong><br/>${formatKRW(item.data.value ?? 0)}`;
         }
 
-        const value = nodeValues[item.name ?? ""] ?? 0;
-        const meta = item.name ? nodeMeta.get(item.name) : undefined;
+        const value = tooltipNodeValues[item.name ?? ""] ?? 0;
+        const meta = item.name ? tooltipNodeMeta.get(item.name) : undefined;
         return `<strong>${displayNodeName(item.name ?? "", meta?.displayName)}</strong><br/>${formatKRW(value)}`;
       },
     },
@@ -347,6 +351,15 @@ function createSubcategoryOverlaySeries({
     isExpenseSubcategoryNode(detailNodeMeta.get(link.target)),
   );
   const categoryNames = [...new Set(subcategoryLinks.map((link) => link.source))];
+  const labeledSubcategoryNames = new Set(
+    categoryNames.flatMap((category) =>
+      subcategoryLinks
+        .filter((link) => link.source === category)
+        .sort((linkA, linkB) => linkB.value - linkA.value)
+        .slice(0, 2)
+        .map((link) => link.target),
+    ),
+  );
   const calibrationSource = "__overlay_calibration_source";
   const calibrationTarget = "__overlay_calibration_target";
   const hiddenNodeStyle = {
@@ -423,15 +436,17 @@ function createSubcategoryOverlaySeries({
           depth: node?.depth,
           localX: position.localX,
           localY: position.localY,
-          label: buildNodeLabel({
-            depth: node?.depth,
-            detailed: true,
-            displayName: node?.displayName,
-            maxNodeValue,
-            nodeName: link.target,
-            totalIncome,
-            value,
-          }),
+          label: labeledSubcategoryNames.has(link.target)
+            ? buildNodeLabel({
+                depth: node?.depth,
+                detailed: true,
+                displayName: node?.displayName,
+                maxNodeValue,
+                nodeName: link.target,
+                totalIncome,
+                value,
+              })
+            : { show: false },
           itemStyle: {
             color: CATEGORY_COLORS[node?.category ?? link.source] ?? "#64748b",
           },
@@ -503,6 +518,7 @@ function buildNodeLabel({
   });
 
   return {
+    show: true,
     color: getNodeLabelColor(share, isTotalNode),
     fontWeight: isTotalNode || share >= 0.08 ? 700 : 500,
     fontSize,
@@ -579,6 +595,10 @@ function isIncomeSourceNode(nodeName: string, data: SankeyData) {
   return data.links.some((link) => link.source === nodeName && link.target === "총수입");
 }
 
+function isFixedSplitNode(nodeName: string) {
+  return nodeName === "순이익" || nodeName === "총지출";
+}
+
 function isExpenseSubcategoryNode(node?: SankeyData["nodes"][number]) {
   return Boolean(node?.displayName && node.depth !== undefined && node.depth > 0);
 }
@@ -641,7 +661,6 @@ function getDefaultLayoutPositions(
 ): SankeyLayoutPositions {
   const positions: SankeyLayoutPositions = {};
   const nodeMeta = new Map(data.nodes.map((node) => [node.name, node]));
-  const nodeValues = getSankeyNodeValues(data);
   const x = detailed
     ? getHorizontalLayout(true)
     : getHorizontalLayout(false);
@@ -667,13 +686,9 @@ function getDefaultLayoutPositions(
       start: 0.03,
     },
   );
-  const profitValue = nodeValues["순이익"] ?? 0;
-  const expenseValue = nodeValues["총지출"] ?? 0;
-  const profitIsUpper = profitValue >= expenseValue;
-
   setPosition(positions, nodeMeta, "총수입", x.totalIncome, 0.04);
-  setPosition(positions, nodeMeta, "순이익", x.split, profitIsUpper ? 0.04 : 0.58);
-  setPosition(positions, nodeMeta, "총지출", x.split, profitIsUpper ? 0.58 : 0.04);
+  setPosition(positions, nodeMeta, "총지출", x.split, 0.04);
+  setPosition(positions, nodeMeta, "순이익", x.split, 0.58);
   setPosition(positions, nodeMeta, "초과지출", x.totalIncome, 0.04);
 
   incomeSourceLinks.forEach((link) => {

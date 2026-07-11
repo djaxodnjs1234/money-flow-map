@@ -97,7 +97,7 @@ export default function AssetBoardsPage({ onOpenBoard }: AssetBoardsPageProps) {
   function openEditForm(board: AssetBoard) {
     setEditingBoard(board);
     setForm({
-      title: board.title,
+      title: createBoardTitle(board.ownerName, String(board.period.year)),
       ownerName: board.ownerName,
       periodType: board.period.periodType,
       year: String(board.period.year),
@@ -143,14 +143,13 @@ export default function AssetBoardsPage({ onOpenBoard }: AssetBoardsPageProps) {
       return;
     }
 
-    const board = addBoard({
+    addBoard({
       title: form.title,
       ownerName: form.ownerName,
       period,
       description: form.description,
     });
     closeForm();
-    onOpenBoard(board.id);
   }
 
   function handleDelete(board: AssetBoard) {
@@ -273,12 +272,10 @@ export default function AssetBoardsPage({ onOpenBoard }: AssetBoardsPageProps) {
                 <label className="text-sm font-medium text-slate-600">
                   제목
                   <input
-                    className="mt-1 h-10 w-full rounded-md border border-slate-200 px-3 text-sm text-ink outline-none transition focus:border-river focus:ring-2 focus:ring-river/20"
+                    className="mt-1 h-10 w-full cursor-not-allowed rounded-md border border-slate-200 bg-slate-100 px-3 text-sm text-slate-500"
                     value={form.title}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, title: event.target.value }))
-                    }
-                    placeholder="예: 홍길동의 자산관리"
+                    disabled
+                    placeholder="연도와 이름을 입력하면 자동 생성됩니다"
                   />
                 </label>
 
@@ -287,9 +284,14 @@ export default function AssetBoardsPage({ onOpenBoard }: AssetBoardsPageProps) {
                   <input
                     className="mt-1 h-10 w-full rounded-md border border-slate-200 px-3 text-sm text-ink outline-none transition focus:border-river focus:ring-2 focus:ring-river/20"
                     value={form.ownerName}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, ownerName: event.target.value }))
-                    }
+                    onChange={(event) => {
+                      const ownerName = event.target.value;
+                      setForm((current) => ({
+                        ...current,
+                        ownerName,
+                        title: createBoardTitle(ownerName, current.year),
+                      }));
+                    }}
                     placeholder="예: 홍길동"
                   />
                 </label>
@@ -322,9 +324,14 @@ export default function AssetBoardsPage({ onOpenBoard }: AssetBoardsPageProps) {
                     min={1900}
                     max={2200}
                     value={form.year}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, year: event.target.value }))
-                    }
+                    onChange={(event) => {
+                      const year = event.target.value;
+                      setForm((current) => ({
+                        ...current,
+                        year,
+                        title: createBoardTitle(current.ownerName, year),
+                      }));
+                    }}
                     placeholder="예: 2025"
                   />
                 </label>
@@ -402,6 +409,9 @@ export default function AssetBoardsPage({ onOpenBoard }: AssetBoardsPageProps) {
                 <h2 className="mt-3 text-xl font-semibold tracking-normal text-ink">
                   {board.title}
                 </h2>
+                <p className="mt-1 text-xs text-slate-400">
+                  생성 {formatCreatedAt(board.createdAt)}
+                </p>
                 {board.description && (
                   <p className="mt-2 text-sm leading-6 text-slate-500">{board.description}</p>
                 )}
@@ -496,6 +506,32 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function getImportInputId(boardId: string) {
   return `asset-board-import-${boardId}`;
+}
+
+function createBoardTitle(ownerName: string, year: string) {
+  const normalizedName = ownerName.trim();
+  const normalizedYear = year.trim();
+
+  if (!normalizedName || !normalizedYear) return "";
+  return `${normalizedYear}년 ${normalizedName}의 자산관리`;
+}
+
+function formatCreatedAt(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "-";
+
+  const parts = [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ];
+  const time = [
+    String(date.getHours()).padStart(2, "0"),
+    String(date.getMinutes()).padStart(2, "0"),
+  ];
+
+  return `${parts.join(".")} ${time.join(":")}`;
 }
 
 function getFormPeriod(form: BoardFormState): FlowPeriodSelection | null {
